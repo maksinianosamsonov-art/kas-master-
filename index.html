@@ -5,10 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <title>Кас Мастеръ - Калькулятор раскроя (Линейный и Листовой) Онлайн</title>
-    <meta name="description" content="Бесплатный сервис для оптимизации раскроя профильной трубы, арматуры, ЛДСП и фанеры. Минимизация отходов, карты раскроя, расчет стоимости. Без регистрации.">
+    <meta name="description" content="Бесплатный сервис для оптимизации раскроя профильной трубы, арматуры, ЛДСП и фанеры. Минимизация отходов, карты раскроя, расчет стоимости.">
     <meta name="keywords" content="карта раскроя онлайн, калькулятор раскроя, раскрой трубы, раскрой лдсп, оптимизация резки, программа раскроя, Кас Мастер">
-    <meta name="yandex-verification" content="" /> 
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📐</text></svg>">
+
+    <meta name="kadam-verification" content="kadam5bea9ce0a9f1c9bad43201c33cd9ffda" />
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
@@ -26,22 +27,33 @@
         ym(106451853, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
     </script>
     <noscript><div><img src="https://mc.yandex.ru/watch/106451853" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+    
     <style>
         @media print {
-            header, button, .no-print, .ad-banner, .seo-text { display: none !important; }
+            header, button, .no-print, .ad-banner, .seo-text, #teaser-block-1, #teaser-block-2 { display: none !important; }
             body { background: white; color: black; }
             .bg-slate-50 { background: white; }
             .shadow-sm, .shadow-md, .shadow-lg { box-shadow: none !important; }
             .bg-slate-900 { background: #333; color: white; }
             input { border: none; background: transparent; }
             .print-break-inside-avoid { page-break-inside: avoid; }
-            /* Скрываем рекламу при печати */
-            .ad-container { display: none !important; }
         }
-        /* Стили для текстового блока */
         .prose h3 { margin-bottom: 0.5em; }
         .prose p { margin-bottom: 0.8em; }
         .prose ul { list-style-type: disc; padding-left: 1.2em; margin-bottom: 1em; }
+        
+        /* Стили для контейнера тизеров */
+        .teaser-container {
+            min-height: 150px;
+            background: #f1f5f9;
+            border: 1px dashed #cbd5e1;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans">
@@ -50,17 +62,6 @@
 
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
-
-        // --- КОМПОНЕНТ РЕКЛАМЫ (ЗАГЛУШКА) ---
-        const AdBlock = ({ id, label }) => (
-            <div className="ad-container w-full my-6 p-4 bg-slate-100 border-2 border-slate-200 border-dashed rounded-lg flex flex-col items-center justify-center text-slate-400 min-h-[120px]">
-                <span className="text-[10px] uppercase font-bold mb-2 tracking-wider bg-slate-200 px-2 py-0.5 rounded text-slate-500">Реклама</span>
-                <div id={`yandex_rtb_${id}`} className="text-center text-sm">
-                    {/* Тут будет реклама, когда одобрят */}
-                    Рекламный блок ({label})
-                </div>
-            </div>
-        );
 
         // --- ИКОНКИ ---
         const IconWrapper = ({ children, size = 20, className = "" }) => (
@@ -76,9 +77,15 @@
         const Calculator = (p) => <IconWrapper {...p}><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></IconWrapper>;
         const Download = (p) => <IconWrapper {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></IconWrapper>;
         const FileText = (p) => <IconWrapper {...p}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></IconWrapper>;
-        const DollarSign = (p) => <IconWrapper {...p}><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></IconWrapper>;
         
-        // --- НОВЫЙ КОМПОНЕНТ С ОПИСАНИЕМ (ДЛЯ МОДЕРАЦИИ) ---
+        // --- КОМПОНЕНТ ДЛЯ ТИЗЕРНОЙ РЕКЛАМЫ ---
+        // Важно: Скрипт вставляется отдельно внизу файла
+        const TeaserPlaceholder = ({ id }) => (
+            <div id={id} className="teaser-container no-print">
+                <span className="text-slate-400 text-xs">Загрузка рекламы...</span>
+            </div>
+        );
+
         const SeoDescription = () => (
             <div className="seo-text mt-12 bg-white rounded-xl border border-slate-200 p-6 md:p-8 shadow-sm">
                 <h3 className="text-xl font-bold text-slate-800 mb-4">Оптимизатор раскроя материалов «Кас Мастеръ»</h3>
@@ -105,7 +112,6 @@
             </div>
         );
 
-        // --- НОВЫЙ КОМПОНЕНТ ПОДВАЛА (ДЛЯ ЮРИСТОВ) ---
         const LegalFooter = () => (
             <footer className="mt-12 border-t border-slate-200 pt-6 pb-12 text-center md:text-left">
                 <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-slate-400">
@@ -114,14 +120,13 @@
                         <p>Сервис «Кас Мастеръ» работает автономно в браузере.</p>
                     </div>
                     <div className="flex gap-6">
-                        <a href="#" onClick={(e)=>{e.preventDefault(); alert("Политика конфиденциальности:\nДанный сайт не собирает и не хранит персональные данные пользователей на сервере. Все расчеты производятся локально в вашем браузере.\n\nМы используем cookie только для работы Яндекс.Метрики.");}} className="hover:text-slate-600 transition-colors">Политика конфиденциальности</a>
-                        <a href="#" onClick={(e)=>{e.preventDefault(); alert("Пользовательское соглашение:\nИспользуя сервис, вы соглашаетесь с тем, что расчеты носят рекомендательный характер. Разработчик не несет ответственности за возможный брак при резке.");}} className="hover:text-slate-600 transition-colors">Пользовательское соглашение</a>
+                        <a href="#" onClick={(e)=>{e.preventDefault(); alert("Политика конфиденциальности:\nДанный сайт не собирает и не хранит персональные данные пользователей на сервере.");}} className="hover:text-slate-600 transition-colors">Политика конфиденциальности</a>
+                        <a href="#" onClick={(e)=>{e.preventDefault(); alert("Пользовательское соглашение:\nИспользуя сервис, вы соглашаетесь с тем, что расчеты носят рекомендательный характер.");}} className="hover:text-slate-600 transition-colors">Пользовательское соглашение</a>
                     </div>
                 </div>
             </footer>
         );
 
-        // --- ОСНОВНОЙ КОМПОНЕНТ ---
         const CuttingOptimizer = () => {
             const [mode, setMode] = useState('linear'); 
             const [stockLength, setStockLength] = useState(6000);
@@ -160,19 +165,16 @@
                 const lines = importText.trim().split(/\r?\n/);
                 const newParts = [];
                 let currentMaxId = parts.length > 0 ? Math.max(...parts.map(p => p.id)) : 0;
-
                 lines.forEach((line, index) => {
                     if (!line.trim()) return;
                     const tokens = line.trim().replace(/,/g, '.').split(/[\t\s,;]+/);
                     const nums = tokens.map(Number).filter(n => !isNaN(n));
-
                     if (mode === 'linear' && nums.length >= 1) {
                         newParts.push({ id: currentMaxId + 1 + index, name: `Импорт ${index + 1}`, length: nums[0], width: 0, height: 0, quantity: nums[1] || 1, color: colors[(parts.length + index) % colors.length] });
                     } else if (mode === 'sheet' && nums.length >= 2) {
                         newParts.push({ id: currentMaxId + 1 + index, name: `Импорт ${index + 1}`, length: 0, width: nums[0], height: nums[1], quantity: nums[2] || 1, color: colors[(parts.length + index) % colors.length] });
                     }
                 });
-
                 if (newParts.length > 0) {
                     setParts([...parts, ...newParts]);
                     setImportText('');
@@ -211,148 +213,81 @@
                 });
                 setResults(bars);
                 setSheetResults(null);
-                setOptimizationLog("Использован алгоритм First Fit Decreasing (FFD). Оптимален для одномерных задач.");
+                setOptimizationLog("Использован алгоритм First Fit Decreasing (FFD).");
             };
 
             const calculateSheet = () => {
                 let rawRects = [];
-                parts.forEach(part => { 
-                    for (let i = 0; i < part.quantity; i++) { 
-                        rawRects.push({ ...part, uniqueId: `${part.id}-${i}` }); 
-                    } 
-                });
-
-                if (rawRects.some(p => Math.min(p.width, p.height) > Math.min(stockSize.w, stockSize.h) && Math.max(p.width, p.height) > Math.max(stockSize.w, stockSize.h))) { 
-                    alert("Ошибка: Деталь больше размера листа!"); return; 
-                }
-                
-                const strategies = [
-                    { name: "По площади (Area Desc)", sort: (a, b) => (b.width * b.height) - (a.width * a.height) },
-                    { name: "По длинной стороне (Max Side)", sort: (a, b) => Math.max(b.width, b.height) - Math.max(a.width, a.height) },
-                    { name: "По короткой стороне (Min Side)", sort: (a, b) => Math.min(b.width, b.height) - Math.min(a.width, a.height) },
-                    { name: "По ширине (Width)", sort: (a, b) => b.width - a.width }
-                ];
-
-                let bestSolution = null;
-                let bestEfficiency = -1;
-                let logMessage = "Сравнение стратегий:\n";
-
+                parts.forEach(part => { for (let i = 0; i < part.quantity; i++) { rawRects.push({ ...part, uniqueId: `${part.id}-${i}` }); } });
+                if (rawRects.some(p => Math.min(p.width, p.height) > Math.min(stockSize.w, stockSize.h) && Math.max(p.width, p.height) > Math.max(stockSize.w, stockSize.h))) { alert("Ошибка: Деталь больше размера листа!"); return; }
+                const strategies = [{ name: "По площади", sort: (a, b) => (b.width * b.height) - (a.width * a.height) }, { name: "По длинной стороне", sort: (a, b) => Math.max(b.width, b.height) - Math.max(a.width, a.height) }];
+                let bestSolution = null; let bestEfficiency = -1;
                 strategies.forEach(strat => {
                     let sortedRects = [...rawRects].sort(strat.sort);
                     let currentSheets = [];
                     let remainingParts = [...sortedRects];
                     let sheetId = 1;
-
                     while (remainingParts.length > 0) {
                         const { placedParts, packedIndices } = packOneSheet(remainingParts, stockSize, bladeWidth, allowRotation);
                         if (placedParts.length === 0) break;
                         currentSheets.push({ id: sheetId++, parts: placedParts });
                         remainingParts = remainingParts.filter((_, i) => !packedIndices.has(i));
                     }
-
                     const totalArea = currentSheets.length * stockSize.w * stockSize.h;
                     const usedArea = currentSheets.reduce((acc, s) => acc + s.parts.reduce((pa, p) => pa + (p.width * p.height), 0), 0);
                     const efficiency = totalArea > 0 ? usedArea / totalArea : 0;
-
-                    logMessage += `- ${strat.name}: ${currentSheets.length} листов, КПД ${(efficiency * 100).toFixed(1)}%\n`;
-
-                    if (efficiency > bestEfficiency) {
-                        bestEfficiency = efficiency;
-                        bestSolution = currentSheets;
-                    }
+                    if (efficiency > bestEfficiency) { bestEfficiency = efficiency; bestSolution = currentSheets; }
                 });
-
-                setSheetResults(bestSolution);
-                setResults(null);
-                setOptimizationLog(logMessage + `\n>> Выбран лучший вариант (КПД ${(bestEfficiency * 100).toFixed(1)}%)`);
+                setSheetResults(bestSolution); setResults(null); setOptimizationLog(`Оптимизация завершена. КПД: ${(bestEfficiency * 100).toFixed(1)}%`);
             };
 
             const packOneSheet = (remainingRects, stock, kerf, rotate) => {
                 let freeRects = [{ x: 0, y: 0, w: stock.w, h: stock.h }];
                 let placedParts = [];
                 let packedIndices = new Set();
-
                 const splitFreeRect = (free, placedX, placedY, placedW, placedH) => {
                     const newFree = [];
-                    const rightX = placedX + placedW + kerf;
-                    const bottomY = placedY + placedH + kerf;
-                    if (rightX < free.x + free.w) {
-                        newFree.push({ x: rightX, y: free.y, w: free.x + free.w - rightX, h: free.h });
-                    }
-                    if (bottomY < free.y + free.h) {
-                        newFree.push({ x: free.x, y: bottomY, w: Math.min(placedW, free.w), h: free.y + free.h - bottomY });
-                    }
+                    const rightX = placedX + placedW + kerf; const bottomY = placedY + placedH + kerf;
+                    if (rightX < free.x + free.w) newFree.push({ x: rightX, y: free.y, w: free.x + free.w - rightX, h: free.h });
+                    if (bottomY < free.y + free.h) newFree.push({ x: free.x, y: bottomY, w: Math.min(placedW, free.w), h: free.y + free.h - bottomY });
                     return newFree;
                 };
-
                 for (let i = 0; i < remainingRects.length; i++) {
                     if (packedIndices.has(i)) continue;
                     const part = remainingRects[i];
-                    let bestScore = Infinity;
-                    let bestPlacement = null;
-                    let bestNewFree = null;
-
+                    let bestScore = Infinity; let bestPlacement = null; let bestNewFree = null;
                     for (let f = 0; f < freeRects.length; f++) {
                         const free = freeRects[f];
                         if (part.width <= free.w && part.height <= free.h) {
                             const score = (free.w - part.width) * (free.h - part.height);
-                            if (score < bestScore) {
-                                bestScore = score;
-                                bestPlacement = { rectIndex: f, rotated: false, x: free.x, y: free.y, w: part.width, h: part.height };
-                                bestNewFree = splitFreeRect(free, free.x, free.y, part.width, part.height);
-                            }
+                            if (score < bestScore) { bestScore = score; bestPlacement = { rectIndex: f, rotated: false, x: free.x, y: free.y, w: part.width, h: part.height }; bestNewFree = splitFreeRect(free, free.x, free.y, part.width, part.height); }
                         }
                         if (rotate && part.height <= free.w && part.width <= free.h) {
                             const score = (free.w - part.height) * (free.h - part.width);
-                            if (score < bestScore) {
-                                bestScore = score;
-                                bestPlacement = { rectIndex: f, rotated: true, x: free.x, y: free.y, w: part.height, h: part.width };
-                                bestNewFree = splitFreeRect(free, free.x, free.y, part.height, part.width);
-                            }
+                            if (score < bestScore) { bestScore = score; bestPlacement = { rectIndex: f, rotated: true, x: free.x, y: free.y, w: part.height, h: part.width }; bestNewFree = splitFreeRect(free, free.x, free.y, part.height, part.width); }
                         }
                     }
-
                     if (bestPlacement) {
                         const { rectIndex, rotated, x, y, w, h } = bestPlacement;
                         placedParts.push({ ...part, x, y, currentW: w, currentH: h, rotated });
                         packedIndices.add(i);
-                        freeRects.splice(rectIndex, 1);
-                        freeRects.push(...bestNewFree);
+                        freeRects.splice(rectIndex, 1); freeRects.push(...bestNewFree);
                         freeRects = freeRects.filter((a, idx) => {
                             if (a.w <= 0 || a.h <= 0) return false;
-                            for (let j = 0; j < freeRects.length; j++) {
-                                if (j !== idx) {
-                                    const b = freeRects[j];
-                                    if (a.x >= b.x && a.y >= b.y && a.x + a.w <= b.x + b.w && a.y + a.h <= b.y + b.h) return false;
-                                }
-                            }
+                            for (let j = 0; j < freeRects.length; j++) { if (j !== idx) { const b = freeRects[j]; if (a.x >= b.x && a.y >= b.y && a.x + a.w <= b.x + b.w && a.y + a.h <= b.y + b.h) return false; } }
                             return true;
                         });
                     }
                 }
                 return { placedParts, packedIndices };
             };
-
             const handleCalculate = () => { if (mode === 'linear') calculateLinear(); else calculateSheet(); };
-
             const stats = useMemo(() => {
                 if (mode === 'linear' && results) {
-                    const totalStock = results.length * stockLength;
-                    const used = results.reduce((acc, b) => acc + b.parts.reduce((pa, p) => pa + p.length, 0), 0);
-                    const wasteVal = totalStock - used;
-                    const efficiency = ((used / totalStock) * 100).toFixed(1);
-                    const totalCost = (totalStock / 1000) * materialPrice;
-                    const wasteCost = (wasteVal / 1000) * materialPrice;
+                    const totalStock = results.length * stockLength; const used = results.reduce((acc, b) => acc + b.parts.reduce((pa, p) => pa + p.length, 0), 0); const wasteVal = totalStock - used; const efficiency = ((used / totalStock) * 100).toFixed(1); const totalCost = (totalStock / 1000) * materialPrice; const wasteCost = (wasteVal / 1000) * materialPrice;
                     return { totalItems: results.length, efficiency, waste: wasteVal.toFixed(0), unit: 'мм', areaUnit: 'м', totalCost: totalCost.toFixed(0), wasteCost: wasteCost.toFixed(0), hasPrice: materialPrice > 0 };
                 } else if (mode === 'sheet' && sheetResults) {
-                    const totalAreaMM = sheetResults.length * stockSize.w * stockSize.h;
-                    const usedAreaMM = sheetResults.reduce((acc, s) => acc + s.parts.reduce((pa, p) => pa + (p.width * p.height), 0), 0);
-                    const efficiency = ((usedAreaMM / totalAreaMM) * 100).toFixed(1);
-                    const wasteAreaMM = totalAreaMM - usedAreaMM;
-                    const totalAreaM2 = totalAreaMM / 1000000;
-                    const wasteAreaM2 = wasteAreaMM / 1000000;
-                    const totalCost = totalAreaM2 * materialPrice;
-                    const wasteCost = wasteAreaM2 * materialPrice;
+                    const totalAreaMM = sheetResults.length * stockSize.w * stockSize.h; const usedAreaMM = sheetResults.reduce((acc, s) => acc + s.parts.reduce((pa, p) => pa + (p.width * p.height), 0), 0); const efficiency = ((usedAreaMM / totalAreaMM) * 100).toFixed(1); const wasteAreaMM = totalAreaMM - usedAreaMM; const totalAreaM2 = totalAreaMM / 1000000; const wasteAreaM2 = wasteAreaMM / 1000000; const totalCost = totalAreaM2 * materialPrice; const wasteCost = wasteAreaM2 * materialPrice;
                     return { totalItems: sheetResults.length, efficiency, waste: wasteAreaM2.toFixed(3), unit: 'мм²', areaUnit: 'м²', totalCost: totalCost.toFixed(0), wasteCost: wasteCost.toFixed(0), hasPrice: materialPrice > 0 };
                 }
                 return null;
@@ -362,27 +297,15 @@
                 <div className="min-h-screen pb-10 flex flex-col">
                 <header className="bg-slate-900 text-white p-4 shadow-lg sticky top-0 z-20 print:hidden">
                     <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-                    <div className="flex items-center gap-3">
-                        <div><h1 className="text-xl font-bold leading-tight">Кас Мастеръ</h1><p className="text-xs text-slate-400">Универсальный оптимизатор раскроя</p></div>
-                    </div>
+                    <div className="flex items-center gap-3"><div><h1 className="text-xl font-bold leading-tight">Кас Мастеръ</h1><p className="text-xs text-slate-400">Универсальный оптимизатор раскроя</p></div></div>
                     <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-700">
                         <button onClick={() => setMode('linear')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${mode === 'linear' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}><Scissors size={16} /> Линейный</button>
                         <button onClick={() => setMode('sheet')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${mode === 'sheet' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}><Layers size={16} /> Листовой</button>
                     </div>
                     <div className="flex items-center gap-4 bg-slate-800 p-2 rounded-lg border border-slate-700 overflow-x-auto max-w-full">
-                        {mode === 'linear' ? (
-                            <div className="flex flex-col min-w-[80px]"><label className="text-[10px] text-slate-400 uppercase font-semibold">Длина (мм)</label><input type="number" value={stockLength} onChange={(e) => setStockLength(Number(e.target.value))} className="bg-transparent text-white font-mono font-bold w-full focus:outline-none"/></div>
-                        ) : (
-                            <>
-                                <div className="flex flex-col w-20"><label className="text-[10px] text-slate-400 uppercase font-semibold">Ширина</label><input type="number" value={stockSize.w} onChange={(e) => setStockSize({...stockSize, w: Number(e.target.value)})} className="bg-transparent text-white font-mono font-bold w-full focus:outline-none"/></div>
-                                <div className="w-px h-8 bg-slate-600"></div>
-                                <div className="flex flex-col w-20"><label className="text-[10px] text-slate-400 uppercase font-semibold">Высота</label><input type="number" value={stockSize.h} onChange={(e) => setStockSize({...stockSize, h: Number(e.target.value)})} className="bg-transparent text-white font-mono font-bold w-full focus:outline-none"/></div>
-                            </>
-                        )}
-                        <div className="w-px h-8 bg-slate-600"></div>
-                        <div className="flex flex-col w-24"><label className="text-[10px] text-slate-400 uppercase font-semibold">Ширина реза</label><input type="number" value={bladeWidth} onChange={(e) => setBladeWidth(Number(e.target.value))} className="bg-transparent text-white font-mono font-bold w-full focus:outline-none"/></div>
-                        <div className="w-px h-8 bg-slate-600"></div>
-                        <div className="flex flex-col w-20"><label className="text-[10px] text-emerald-400 uppercase font-semibold flex items-center gap-1">Цена {mode==='linear'?'/м':'/м²'}</label><input type="number" value={materialPrice} onChange={(e) => setMaterialPrice(Number(e.target.value))} className="bg-transparent text-white font-mono font-bold w-full focus:outline-none text-emerald-300" placeholder="0"/></div>
+                        {mode === 'linear' ? (<div className="flex flex-col min-w-[80px]"><label className="text-[10px] text-slate-400 uppercase font-semibold">Длина (мм)</label><input type="number" value={stockLength} onChange={(e) => setStockLength(Number(e.target.value))} className="bg-transparent text-white font-mono font-bold w-full focus:outline-none"/></div>) : (<React.Fragment><div className="flex flex-col w-20"><label className="text-[10px] text-slate-400 uppercase font-semibold">Ширина</label><input type="number" value={stockSize.w} onChange={(e) => setStockSize({...stockSize, w: Number(e.target.value)})} className="bg-transparent text-white font-mono font-bold w-full focus:outline-none"/></div><div className="w-px h-8 bg-slate-600"></div><div className="flex flex-col w-20"><label className="text-[10px] text-slate-400 uppercase font-semibold">Высота</label><input type="number" value={stockSize.h} onChange={(e) => setStockSize({...stockSize, h: Number(e.target.value)})} className="bg-transparent text-white font-mono font-bold w-full focus:outline-none"/></div></React.Fragment>)}
+                        <div className="w-px h-8 bg-slate-600"></div><div className="flex flex-col w-24"><label className="text-[10px] text-slate-400 uppercase font-semibold">Ширина реза</label><input type="number" value={bladeWidth} onChange={(e) => setBladeWidth(Number(e.target.value))} className="bg-transparent text-white font-mono font-bold w-full focus:outline-none"/></div>
+                        <div className="w-px h-8 bg-slate-600"></div><div className="flex flex-col w-20"><label className="text-[10px] text-emerald-400 uppercase font-semibold flex items-center gap-1">Цена {mode==='linear'?'/м':'/м²'}</label><input type="number" value={materialPrice} onChange={(e) => setMaterialPrice(Number(e.target.value))} className="bg-transparent text-white font-mono font-bold w-full focus:outline-none text-emerald-300" placeholder="0"/></div>
                     </div>
                     </div>
                 </header>
@@ -392,21 +315,15 @@
                         <div className="p-4 bg-slate-100 border-b border-slate-200 flex justify-between items-center shrink-0">
                         <h2 className="font-semibold text-slate-700 flex items-center gap-2"><Settings size={18} /> Детали {mode === 'sheet' && '(мм)'}</h2>
                         <div className="flex gap-2">
-                            {mode === 'sheet' && (
-                                <button onClick={() => setAllowRotation(!allowRotation)} className={`p-2 rounded-lg border transition-all shadow-sm ${allowRotation ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700' : 'bg-white text-slate-600 border-slate-300 hover:border-indigo-500 hover:text-indigo-600'}`} title="Вращение"><RotateCcw size={18} /></button>
-                            )}
+                            {mode === 'sheet' && (<button onClick={() => setAllowRotation(!allowRotation)} className={`p-2 rounded-lg border transition-all shadow-sm ${allowRotation ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700' : 'bg-white text-slate-600 border-slate-300 hover:border-indigo-500 hover:text-indigo-600'}`} title="Вращение"><RotateCcw size={18} /></button>)}
                             <button onClick={() => setShowImport(!showImport)} className={`p-2 rounded-lg border transition-all shadow-sm ${showImport ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700' : 'bg-white text-slate-600 border-slate-300 hover:border-indigo-500 hover:text-indigo-600'}`} title="Импорт данных из Excel"><FileText size={18} /></button>
                             <button onClick={clearAllParts} className="p-2 rounded-lg border border-slate-300 bg-white text-red-500 hover:bg-red-50 hover:border-red-500 transition-all shadow-sm" title="Удалить все"><Trash2 size={18} /></button>
                             <button onClick={addPart} className="p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-colors shadow-sm"><Plus size={18} /></button>
                         </div>
                         </div>
-                        
                         {showImport ? (
                             <div className="p-4 flex-grow flex flex-col bg-slate-50/50">
-                                <div className="text-xs text-slate-500 mb-2">
-                                    {mode === 'linear' ? "Вставьте данные: Длина Количество" : "Вставьте данные: Ширина Высота Количество"}
-                                    <br/>(Скопируйте столбцы из Excel)
-                                </div>
+                                <div className="text-xs text-slate-500 mb-2">{mode === 'linear' ? "Вставьте данные: Длина Количество" : "Вставьте данные: Ширина Высота Количество"}<br/>(Скопируйте столбцы из Excel)</div>
                                 <textarea className="w-full flex-grow p-3 border border-slate-300 rounded text-sm font-mono focus:outline-none focus:border-blue-500 mb-3" placeholder={mode === 'linear' ? "Пример:\n1500 5\n2300 2" : "Пример:\n500 400 10\n1200 600 5"} value={importText} onChange={(e) => setImportText(e.target.value)}></textarea>
                                 <button onClick={handleImport} className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-medium shadow-sm transition-colors text-sm">Обработать и добавить</button>
                             </div>
@@ -417,11 +334,7 @@
                                 <div key={part.id} className="group relative bg-white p-3 rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
                                 <div className="flex justify-between items-start mb-2"><input type="text" value={part.name} onChange={(e) => updatePart(part.id, 'name', e.target.value)} className="font-medium text-slate-700 w-full focus:outline-none focus:border-b border-blue-300 text-sm"/><button onClick={() => removePart(part.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={16} /></button></div>
                                 <div className="flex gap-2 items-end">
-                                    {mode === 'linear' ? (<div className="flex-1"><label className="text-[9px] uppercase text-slate-400 font-bold block mb-0.5">Длина</label><input type="number" value={part.length} onChange={(e) => updatePart(part.id, 'length', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm font-mono"/></div>) : (<>
-                                        <div className="flex-1"><label className="text-[9px] uppercase text-slate-400 font-bold block mb-0.5">Ширина</label><input type="number" value={part.width} onChange={(e) => updatePart(part.id, 'width', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm font-mono"/></div>
-                                        <span className="pb-2 text-slate-300">x</span>
-                                        <div className="flex-1"><label className="text-[9px] uppercase text-slate-400 font-bold block mb-0.5">Высота</label><input type="number" value={part.height} onChange={(e) => updatePart(part.id, 'height', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm font-mono"/></div>
-                                    </>)}
+                                    {mode === 'linear' ? (<div className="flex-1"><label className="text-[9px] uppercase text-slate-400 font-bold block mb-0.5">Длина</label><input type="number" value={part.length} onChange={(e) => updatePart(part.id, 'length', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm font-mono"/></div>) : (<React.Fragment><div className="flex-1"><label className="text-[9px] uppercase text-slate-400 font-bold block mb-0.5">Ширина</label><input type="number" value={part.width} onChange={(e) => updatePart(part.id, 'width', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm font-mono"/></div><span className="pb-2 text-slate-300">x</span><div className="flex-1"><label className="text-[9px] uppercase text-slate-400 font-bold block mb-0.5">Высота</label><input type="number" value={part.height} onChange={(e) => updatePart(part.id, 'height', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm font-mono"/></div></React.Fragment>)}
                                     <div className="w-16"><label className="text-[9px] uppercase text-slate-400 font-bold block mb-0.5">Кол-во</label><input type="number" value={part.quantity} onChange={(e) => updatePart(part.id, 'quantity', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm font-mono text-center"/></div>
                                 </div>
                                 <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-lg ${part.color}`}></div>
@@ -429,28 +342,19 @@
                             ))}
                             </div>
                         )}
-                        
                         <div className="p-4 bg-slate-50 border-t border-slate-200 shrink-0">
                             <button onClick={handleCalculate} disabled={parts.length === 0} className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-semibold shadow-md active:transform active:scale-95 transition-all flex justify-center items-center gap-2 disabled:opacity-50"><Calculator size={20} /> Рассчитать</button>
                             <div className="mt-3 text-center">
-                                <p className="text-[10px] text-slate-400 font-medium select-all mb-2">
-                                    Поддержать проект:
-                                </p>
-                                <div className="flex justify-center mb-2">
-                                    <img 
-                                            src="f72a202f-7469-4ccd-ae92-c126326506ca.jpg" 
-                                            alt="QR Code для пожертвования" 
-                                            className="w-32 h-32 object-contain border border-slate-200 rounded-lg"
-                                    />
-                                </div>
+                                <p className="text-[10px] text-slate-400 font-medium select-all mb-2">Поддержать проект:</p>
+                                <div className="flex justify-center mb-2"><img src="f72a202f-7469-4ccd-ae92-c126326506ca.jpg" alt="QR Code для пожертвования" className="w-32 h-32 object-contain border border-slate-200 rounded-lg"/></div>
                             </div>
                         </div>
                     </div>
                     </div>
                     <div className="lg:col-span-2 space-y-6">
                     
-                    {/* --- РЕКЛАМНЫЙ БЛОК ВЕРХНИЙ (Сюда встанет реклама Яндекса) --- */}
-                    <AdBlock id="R-A-12345-1" label="Верхний блок" />
+                    {/* --- ТИЗЕРНЫЙ БЛОК ВЕРХНИЙ --- */}
+                    <TeaserPlaceholder id="kadam-block-top" />
 
                     {stats ? (
                         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
@@ -462,29 +366,14 @@
                         </div>
                         {stats.hasPrice && (
                             <div className="grid grid-cols-2 gap-3">
-                                <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100 flex items-center justify-between">
-                                    <div>
-                                        <div className="text-xs text-emerald-600 uppercase font-bold mb-1">Стоимость материала</div>
-                                        <div className="text-xl font-mono font-bold text-emerald-800">{stats.totalCost} ₽</div>
-                                    </div>
-                                </div>
-                                <div className="bg-rose-50 p-3 rounded-xl border border-rose-100 flex items-center justify-between">
-                                    <div>
-                                        <div className="text-xs text-rose-600 uppercase font-bold mb-1">Стоимость отходов</div>
-                                        <div className="text-xl font-mono font-bold text-rose-800">{stats.wasteCost} ₽</div>
-                                    </div>
-                                    <div className="p-2 bg-rose-200 rounded-full text-rose-700"><Trash2 size={20}/></div>
-                                </div>
+                                <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100 flex items-center justify-between"><div><div className="text-xs text-emerald-600 uppercase font-bold mb-1">Стоимость материала</div><div className="text-xl font-mono font-bold text-emerald-800">{stats.totalCost} ₽</div></div></div>
+                                <div className="bg-rose-50 p-3 rounded-xl border border-rose-100 flex items-center justify-between"><div><div className="text-xs text-rose-600 uppercase font-bold mb-1">Стоимость отходов</div><div className="text-xl font-mono font-bold text-rose-800">{stats.wasteCost} ₽</div></div><div className="p-2 bg-rose-200 rounded-full text-rose-700"><Trash2 size={20}/></div></div>
                             </div>
                         )}
-                        {optimizationLog && (
-                            <div className="text-[10px] text-slate-500 font-mono bg-slate-100 p-2 rounded border border-slate-200 whitespace-pre-wrap">
-                                {optimizationLog}
-                            </div>
-                        )}
+                        {optimizationLog && (<div className="text-[10px] text-slate-500 font-mono bg-slate-100 p-2 rounded border border-slate-200 whitespace-pre-wrap">{optimizationLog}</div>)}
                         
-                        {/* --- РЕКЛАМНЫЙ БЛОК ЦЕНТРАЛЬНЫЙ --- */}
-                        <AdBlock id="R-A-12345-2" label="Центральный блок" />
+                        {/* --- ТИЗЕРНЫЙ БЛОК ЦЕНТРАЛЬНЫЙ --- */}
+                        <TeaserPlaceholder id="kadam-block-middle" />
 
                         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                             <div className="flex justify-between items-center mb-6"><h2 className="text-lg font-bold text-slate-800">Схемы {mode === 'linear' ? 'нарезки' : 'раскроя'}</h2><button onClick={() => window.print()} className="text-sm flex items-center gap-1 text-blue-600 hover:underline"><Download size={16} /> Печать</button></div>
@@ -531,14 +420,12 @@
                         </div>
                     )}
 
-                    {/* --- ВАЖНОЕ ОБНОВЛЕНИЕ: ТЕКСТОВЫЙ БЛОК ДЛЯ SEO --- */}
                     <div className="lg:col-span-2">
                         <SeoDescription />
                     </div>
 
                     </div>
                     
-                    {/* --- ПОДВАЛ С ЮРИДИЧЕСКИМИ ССЫЛКАМИ --- */}
                     <div className="lg:col-span-3">
                         <LegalFooter />
                     </div>
@@ -557,4 +444,7 @@
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<CuttingOptimizer />);
-    </script></body></html>
+    </script>
+
+    </body>
+</html>
