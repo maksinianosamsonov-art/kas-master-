@@ -15,6 +15,17 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+    <script type="text/javascript">
+        (function(m,e,t,r,i,k,a){
+            m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+            m[i].l=1*new Date();
+            for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+            k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
+        })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=106451853', 'ym');
+
+        ym(106451853, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
+    </script>
+    <noscript><div><img src="https://mc.yandex.ru/watch/106451853" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
     <style>
         @media print {
             header, button, .no-print, .ad-banner, .seo-text { display: none !important; }
@@ -362,8 +373,11 @@
                         {mode === 'linear' ? (
                             <div className="flex flex-col min-w-[80px]"><label className="text-[10px] text-slate-400 uppercase font-semibold">Длина (мм)</label><input type="number" value={stockLength} onChange={(e) => setStockLength(Number(e.target.value))} className="bg-transparent text-white font-mono font-bold w-full focus:outline-none"/></div>
                         ) : (
-                            <React.Fragment><div className="flex flex-col w-20"><label className="text-[10px] text-slate-400 uppercase font-semibold">Ширина</label><input type="number" value={stockSize.w} onChange={(e) => setStockSize({...stockSize, w: Number(e.target.value)})} className="bg-transparent text-white font-mono font-bold w-full focus:outline-none"/></div>
-                            <div className="w-px h-8 bg-slate-600"></div><div className="flex flex-col w-20"><label className="text-[10px] text-slate-400 uppercase font-semibold">Высота</label><input type="number" value={stockSize.h} onChange={(e) => setStockSize({...stockSize, h: Number(e.target.value)})} className="bg-transparent text-white font-mono font-bold w-full focus:outline-none"/></div></React.Fragment>
+                            <>
+                                <div className="flex flex-col w-20"><label className="text-[10px] text-slate-400 uppercase font-semibold">Ширина</label><input type="number" value={stockSize.w} onChange={(e) => setStockSize({...stockSize, w: Number(e.target.value)})} className="bg-transparent text-white font-mono font-bold w-full focus:outline-none"/></div>
+                                <div className="w-px h-8 bg-slate-600"></div>
+                                <div className="flex flex-col w-20"><label className="text-[10px] text-slate-400 uppercase font-semibold">Высота</label><input type="number" value={stockSize.h} onChange={(e) => setStockSize({...stockSize, h: Number(e.target.value)})} className="bg-transparent text-white font-mono font-bold w-full focus:outline-none"/></div>
+                            </>
                         )}
                         <div className="w-px h-8 bg-slate-600"></div>
                         <div className="flex flex-col w-24"><label className="text-[10px] text-slate-400 uppercase font-semibold">Ширина реза</label><input type="number" value={bladeWidth} onChange={(e) => setBladeWidth(Number(e.target.value))} className="bg-transparent text-white font-mono font-bold w-full focus:outline-none"/></div>
@@ -403,7 +417,11 @@
                                 <div key={part.id} className="group relative bg-white p-3 rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
                                 <div className="flex justify-between items-start mb-2"><input type="text" value={part.name} onChange={(e) => updatePart(part.id, 'name', e.target.value)} className="font-medium text-slate-700 w-full focus:outline-none focus:border-b border-blue-300 text-sm"/><button onClick={() => removePart(part.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={16} /></button></div>
                                 <div className="flex gap-2 items-end">
-                                    {mode === 'linear' ? (<div className="flex-1"><label className="text-[9px] uppercase text-slate-400 font-bold block mb-0.5">Длина</label><input type="number" value={part.length} onChange={(e) => updatePart(part.id, 'length', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm font-mono"/></div>) : (<React.Fragment><div className="flex-1"><label className="text-[9px] uppercase text-slate-400 font-bold block mb-0.5">Ширина</label><input type="number" value={part.width} onChange={(e) => updatePart(part.id, 'width', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm font-mono"/></div><span className="pb-2 text-slate-300">x</span><div className="flex-1"><label className="text-[9px] uppercase text-slate-400 font-bold block mb-0.5">Высота</label><input type="number" value={part.height} onChange={(e) => updatePart(part.id, 'height', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm font-mono"/></div></React.Fragment>)}
+                                    {mode === 'linear' ? (<div className="flex-1"><label className="text-[9px] uppercase text-slate-400 font-bold block mb-0.5">Длина</label><input type="number" value={part.length} onChange={(e) => updatePart(part.id, 'length', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm font-mono"/></div>) : (<>
+                                        <div className="flex-1"><label className="text-[9px] uppercase text-slate-400 font-bold block mb-0.5">Ширина</label><input type="number" value={part.width} onChange={(e) => updatePart(part.id, 'width', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm font-mono"/></div>
+                                        <span className="pb-2 text-slate-300">x</span>
+                                        <div className="flex-1"><label className="text-[9px] uppercase text-slate-400 font-bold block mb-0.5">Высота</label><input type="number" value={part.height} onChange={(e) => updatePart(part.id, 'height', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm font-mono"/></div>
+                                    </>)}
                                     <div className="w-16"><label className="text-[9px] uppercase text-slate-400 font-bold block mb-0.5">Кол-во</label><input type="number" value={part.quantity} onChange={(e) => updatePart(part.id, 'quantity', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm font-mono text-center"/></div>
                                 </div>
                                 <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-lg ${part.color}`}></div>
@@ -420,9 +438,9 @@
                                 </p>
                                 <div className="flex justify-center mb-2">
                                     <img 
-                                        src="f72a202f-7469-4ccd-ae92-c126326506ca.jpg" 
-                                        alt="QR Code для пожертвования" 
-                                        className="w-32 h-32 object-contain border border-slate-200 rounded-lg"
+                                            src="f72a202f-7469-4ccd-ae92-c126326506ca.jpg" 
+                                            alt="QR Code для пожертвования" 
+                                            className="w-32 h-32 object-contain border border-slate-200 rounded-lg"
                                     />
                                 </div>
                             </div>
@@ -539,8 +557,4 @@
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<CuttingOptimizer />);
-    </script>
-</body>
-</html>
-
-
+    </script></body></html>
