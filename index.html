@@ -40,7 +40,7 @@
     
     <style>
         @media print {
-            header, button, .no-print, .ad-banner, .seo-text, .thwsfd417206, .emhmqf417206, .aDgQZr418560, .ThaBdH418560 { display: none !important; }
+            header, button, .no-print, .ad-banner, .seo-text, .thwsfd417206, .emhmqf417206, .aDgQZr418560, .ThaBdH418560, .checkers-wrapper-print { display: none !important; }
             body { background: white; color: black; }
             .bg-slate-50 { background: white; }
             .shadow-soft, .shadow-card { box-shadow: none !important; }
@@ -69,6 +69,88 @@
             margin: 10px 0;
             overflow: hidden;
             border: 1px dashed #e2e8f0;
+        }
+
+        /* --- СТИЛИ ДЛЯ ИГРЫ ШАШКИ --- */
+        .checkers-container {
+            max-width: 600px;
+            margin: 20px auto;
+            font-family: Arial, sans-serif;
+            background: #2c3e50;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            color: white;
+        }
+        .checkers-header { text-align: center; margin-bottom: 15px; }
+        .checkers-header h2 { margin: 0 0 10px 0; font-size: 24px; color: #f1c40f; }
+        .checkers-status {
+            padding: 10px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            margin-bottom: 15px;
+            min-height: 30px;
+        }
+        .checkers-board {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-gap: 2px;
+            margin-bottom: 15px;
+        }
+        .checkers-cell {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .checkers-light { background: #e8c193; }
+        .checkers-dark { background: #8b5a2b; }
+        .checkers-cell.highlight { background: rgba(255, 255, 0, 0.4) !important; }
+        .checkers-cell.selected { outline: 3px solid gold; z-index: 10; }
+        .checkers-piece {
+            width: 90%;
+            height: 90%;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+        }
+        .checkers-white { background: radial-gradient(circle at 30% 30%, #fff, #e0e0e0); color: #333; }
+        .checkers-black { background: radial-gradient(circle at 30% 30%, #333, #111); color: #fff; }
+        .checkers-king::after { content: '♛'; position: absolute; font-size: 16px; color: gold; }
+        .checkers-controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+        .checkers-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            background: #3498db;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        .checkers-btn:hover { background: #2980b9; transform: translateY(-2px); }
+        .checkers-btn:active { transform: translateY(1px); }
+        .checkers-btn.reset { background: #e74c3c; }
+        .checkers-btn.reset:hover { background: #c0392b; }
+        .checkers-difficulty { margin-top: 15px; text-align: center; }
+        .checkers-difficulty select {
+            padding: 8px 15px;
+            border-radius: 6px;
+            border: 2px solid #3498db;
+            background: #34495e;
+            color: white;
+            font-size: 14px;
+        }
+        @media (max-width: 480px) {
+            .checkers-container { margin: 10px; padding: 15px; }
+            .checkers-header h2 { font-size: 20px; }
         }
     </style>
 </head>
@@ -142,6 +224,41 @@
                 </div>
             </div>
         );
+
+        // --- КОМПОНЕНТ ИГРЫ ШАШКИ ---
+        const CheckersGame = () => {
+            return (
+                <div className="checkers-wrapper-print print:hidden mt-16 mb-8">
+                    <div className="max-w-6xl mx-auto px-4">
+                        <div className="text-center mb-6">
+                            <h3 className="text-xl font-bold text-slate-700">Устали от расчетов?</h3>
+                            <p className="text-sm text-slate-500">Сыграйте партию в шашки с ИИ, пока отдыхаете</p>
+                        </div>
+                        <div className="checkers-container" id="checkers-game">
+                            <div className="checkers-header">
+                                <h2>♟️ Шашки ♟️</h2>
+                                <div className="checkers-difficulty">
+                                    <label>
+                                        Сложность: 
+                                        <select id="difficulty" defaultValue="medium" className="ml-2">
+                                            <option value="easy">Легко</option>
+                                            <option value="medium">Средне</option>
+                                            <option value="hard">Сложно</option>
+                                        </select>
+                                    </label>
+                                </div>
+                            </div>
+                            <div className="checkers-status" id="status">Ваш ход (белые)</div>
+                            <div className="checkers-board" id="board"></div>
+                            <div className="checkers-controls">
+                                <button className="checkers-btn reset" id="reset">Новая игра</button>
+                                <button className="checkers-btn" id="undo">Отменить ход</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
 
         // --- ГЛАВНЫЙ КОМПОНЕНТ ---
         const App = () => {
@@ -500,6 +617,9 @@
                         <AdUnit adClass="ThaBdH418560" />
                         
                         <SeoDescription />
+                        
+                        {/* ИГРА ШАШКИ */}
+                        <CheckersGame />
                     </section>
                     
                     <LegalFooter />
@@ -571,6 +691,44 @@
         s.setAttribute('data-cfasync', false);
         s.src = 'https://hdbkome.com/st8adaz6.js'; 
         document.head && document.head.appendChild(s);
+    </script>
+
+    <script>
+    class Checkers {      constructor() {        this.board = Array(8).fill().map(() => Array(8).fill(null));        this.playerColor = 'white';        this.aiColor = 'black';        this.currentPlayer = this.playerColor;        this.selectedPiece = null;        this.validMoves = [];        this.history = [];        this.difficulty = 'medium';                this.initBoard();        this.renderBoard();        this.bindEvents();      }
+      initBoard() {        // Чёрные шашки        for (let row = 0; row < 3; row++) {          for (let col = 0; col < 8; col++) {            if ((row + col) % 2 === 1) {              this.board[row][col] = { color: 'black', king: false };            }          }        }        // Белые шашки        for (let row = 5; row < 8; row++) {          for (let col = 0; col < 8; col++) {            if ((row + col) % 2 === 1) {              this.board[row][col] = { color: 'white', king: false };            }          }        }      }
+      renderBoard() {        const boardEl = document.getElementById('board');        if(!boardEl) return;
+        boardEl.innerHTML = '';                for (let row = 0; row < 8; row++) {          for (let col = 0; col < 8; col++) {            const cell = document.createElement('div');            cell.className = `checkers-cell ${(row + col) % 2 === 0 ? 'checkers-light' : 'checkers-dark'}`;            cell.dataset.row = row;            cell.dataset.col = col;                        if (this.selectedPiece && this.selectedPiece.row === row && this.selectedPiece.col === col) {              cell.classList.add('selected');            }                        const piece = this.board[row][col];            if (piece) {              const pieceEl = document.createElement('div');              pieceEl.className = `checkers-piece checkers-${piece.color} ${piece.king ? 'checkers-king' : ''}`;              cell.appendChild(pieceEl);            }                        const move = this.validMoves.find(m => m.to.row === row && m.to.col === col);            if (move) {              cell.classList.add('highlight');            }                        boardEl.appendChild(cell);          }        }                this.updateStatus();      }
+      updateStatus() {        const statusEl = document.getElementById('status');        if(!statusEl) return;
+        const whiteCount = this.countPieces('white');        const blackCount = this.countPieces('black');                if (whiteCount === 0) {          statusEl.textContent = '🤖 ИИ победил!';          this.currentPlayer = null;        } else if (blackCount === 0) {          statusEl.textContent = '🎉 Вы победили!';          this.currentPlayer = null;        } else if (this.currentPlayer === this.playerColor) {          statusEl.textContent = 'Ваш ход (белые)';        } else {          statusEl.textContent = 'Ход ИИ (чёрные)...';        }      }
+      countPieces(color) {        return this.board.flat().filter(p => p && p.color === color).length;      }
+      bindEvents() {        const board = document.getElementById('board');        if(board) {            board.addEventListener('click', (e) => {            if (this.currentPlayer !== this.playerColor) return;                    const cell = e.target.closest('.checkers-cell');            if (!cell) return;                    const row = parseInt(cell.dataset.row);            const col = parseInt(cell.dataset.col);                    const piece = this.board[row][col];                    // Выбор шашки            if (piece && piece.color === this.playerColor) {                this.selectedPiece = { row, col };                this.validMoves = this.getValidMoves(row, col);                this.renderBoard();                return;            }                    // Ход шашкой            if (this.selectedPiece) {                const move = this.validMoves.find(m => m.to.row === row && m.to.col === col);                if (move) {                this.saveHistory();                this.makeMove(move);                            // Если был захват — проверяем продолжение                if (move.capture && this.hasContinuationCaptures(move.to.row, move.to.col)) {                    this.selectedPiece = { row: move.to.row, col: move.to.col };                    this.validMoves = this.getValidMoves(move.to.row, move.to.col).filter(m => m.capture);                    this.renderBoard();                } else {                    this.endTurn();                }                } else {                this.selectedPiece = null;                this.validMoves = [];                this.renderBoard();                }            }            });        }        const resetBtn = document.getElementById('reset');        if(resetBtn) resetBtn.addEventListener('click', () => this.reset());        
+        const undoBtn = document.getElementById('undo');
+        if(undoBtn) undoBtn.addEventListener('click', () => this.undo());
+        
+        const diffSelect = document.getElementById('difficulty');
+        if(diffSelect) diffSelect.addEventListener('change', (e) => {          this.difficulty = e.target.value;        });      }
+      getValidMoves(row, col) {        const piece = this.board[row][col];        if (!piece) return [];                const moves = [];        const directions = piece.king ?           [[-1, -1], [-1, 1], [1, -1], [1, 1]] :           (piece.color === 'white' ? [[-1, -1], [-1, 1]] : [[1, -1], [1, 1]]);                // Проверка захватов        for (const [dr, dc] of directions) {          let r = row + dr, c = col + dc;                    if (this.isOnBoard(r + dr, c + dc) &&               this.board[r][c] &&               this.board[r][c].color !== piece.color &&              !this.board[r + dr][c + dc]) {            moves.push({              from: { row, col },              to: { row: r + dr, col: c + dc },              capture: { row: r, col: c }            });          }        }                // Если есть захваты — только они доступны        if (moves.length > 0) return moves;                // Простые ходы        for (const [dr, dc] of directions) {          const r = row + dr, c = col + dc;          if (this.isOnBoard(r, c) && !this.board[r][c]) {            moves.push({              from: { row, col },              to: { row: r, col: c },              capture: null            });          }        }                return moves;      }
+      isOnBoard(row, col) {        return row >= 0 && row < 8 && col >= 0 && col < 8;      }
+      hasContinuationCaptures(row, col) {        const moves = this.getValidMoves(row, col);        return moves.some(m => m.capture);      }
+      makeMove(move) {        const { from, to, capture } = move;        const piece = this.board[from.row][from.col];                // Перемещение        this.board[to.row][to.col] = { ...piece };        this.board[from.row][from.col] = null;                // Захват        if (capture) {          this.board[capture.row][capture.col] = null;        }                // Превращение в дамку        if (!piece.king) {          if (piece.color === 'white' && to.row === 0) {            this.board[to.row][to.col].king = true;          } else if (piece.color === 'black' && to.row === 7) {            this.board[to.row][to.col].king = true;          }        }      }
+      endTurn() {        this.selectedPiece = null;        this.validMoves = [];                // Проверка обязательных захватов для следующего игрока        const hasForced = this.hasForcedMoves(this.currentPlayer === 'white' ? 'black' : 'white');                this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';                this.renderBoard();                // Ход ИИ        if (this.currentPlayer === this.aiColor && this.currentPlayer !== null) {          setTimeout(() => this.aiMove(), 600);        }      }
+      hasForcedMoves(color) {        for (let row = 0; row < 8; row++) {          for (let col = 0; col < 8; col++) {            const piece = this.board[row][col];            if (piece && piece.color === color) {              const moves = this.getValidMoves(row, col);              if (moves.some(m => m.capture)) return true;            }          }        }        return false;      }
+      aiMove() {        if (this.currentPlayer !== this.aiColor) return;                // Собираем все возможные ходы        const allMoves = [];        for (let row = 0; row < 8; row++) {          for (let col = 0; col < 8; col++) {            const piece = this.board[row][col];            if (piece && piece.color === this.aiColor) {              const moves = this.getValidMoves(row, col);              moves.forEach(move => {                allMoves.push({ piece: { row, col }, ...move });              });            }          }        }                if (allMoves.length === 0) return;                // Фильтруем только захваты, если они есть        const captureMoves = allMoves.filter(m => m.capture);        let movesToChoose = captureMoves.length > 0 ? captureMoves : allMoves;                // Выбор хода в зависимости от сложности        let move;        if (this.difficulty === 'easy') {          // Случайный ход          move = movesToChoose[Math.floor(Math.random() * movesToChoose.length)];        } else if (this.difficulty === 'medium') {          // Предпочитаем захваты и продвижение вперёд          movesToChoose.sort((a, b) => {            let scoreA = 0, scoreB = 0;                        if (a.capture) scoreA += 10;            if (b.capture) scoreB += 10;                        // Предпочитаем продвижение вперёд            if (a.to.row < a.piece.row) scoreA += 2;            if (b.to.row < b.piece.row) scoreB += 2;                        return scoreB - scoreA;          });                    // Берём один из лучших ходов (не всегда самый лучший для "человечности")          const topMoves = movesToChoose.slice(0, Math.min(3, movesToChoose.length));          move = topMoves[Math.floor(Math.random() * topMoves.length)];        } else { // hard          // Более агрессивная стратегия          movesToChoose.sort((a, b) => {            let scoreA = 0, scoreB = 0;                        if (a.capture) scoreA += 15;            if (b.capture) scoreB += 15;                        // Двойные захваты            if (a.capture && this.hasContinuationCaptures(a.to.row, a.to.col)) scoreA += 20;            if (b.capture && this.hasContinuationCaptures(b.to.row, b.to.col)) scoreB += 20;                        // Защита шашек            if (this.isSafePosition(a.to.row, a.to.col)) scoreA += 5;            if (this.isSafePosition(b.to.row, b.to.col)) scoreB += 5;                        // Продвижение к дамке            if (this.board[a.piece.row][a.piece.col] && !this.board[a.piece.row][a.piece.col].king) {              scoreA += (7 - a.to.row) * 0.5;            }                        return scoreB - scoreA;          });                    move = movesToChoose[0];        }                // Выполняем ход        this.saveHistory();        this.makeMove(move);                // Проверка продолжения захвата        if (move.capture && this.hasContinuationCaptures(move.to.row, move.to.col)) {          setTimeout(() => this.aiMove(), 400);        } else {          setTimeout(() => this.endTurn(), 400);        }      }
+      isSafePosition(row, col) {        const directions = [[-1, -1], [-1, 1], [1, -1], [1, 1]];        for (const [dr, dc] of directions) {          const r = row + dr, c = col + dc;          if (this.isOnBoard(r, c) && this.board[r][c] && this.board[r][c].color === this.playerColor) {            const rr = r + dr, cc = c + dc;            if (this.isOnBoard(rr, cc) && !this.board[rr][cc]) {              return false; // Могут захватить            }          }        }        return true;      }
+      saveHistory() {        const snapshot = JSON.parse(JSON.stringify(this.board));        this.history.push({          board: snapshot,          currentPlayer: this.currentPlayer,          selectedPiece: this.selectedPiece ? { ...this.selectedPiece } : null        });      }
+      undo() {        if (this.history.length === 0 || this.currentPlayer === this.aiColor) return;                const lastState = this.history.pop();        if (lastState) {          this.board = JSON.parse(JSON.stringify(lastState.board));          this.currentPlayer = lastState.currentPlayer;          this.selectedPiece = lastState.selectedPiece ? { ...lastState.selectedPiece } : null;          this.validMoves = this.selectedPiece ?             this.getValidMoves(this.selectedPiece.row, this.selectedPiece.col) : [];          this.renderBoard();        }      }
+      reset() {        this.history = [];        this.selectedPiece = null;        this.validMoves = [];        this.currentPlayer = this.playerColor;        const diffEl = document.getElementById('difficulty');
+        if(diffEl) this.difficulty = diffEl.value;
+        this.initBoard();        this.renderBoard();      }    }
+    
+    // Запуск игры после загрузки страницы
+    window.addEventListener('load', () => {
+        setTimeout(() => {
+            if(document.getElementById('board')) {
+                window.checkersGame = new Checkers();
+            }
+        }, 500); // Небольшая задержка, чтобы React успел отрисовать DOM
+    });
     </script>
 </body>
 </html>
