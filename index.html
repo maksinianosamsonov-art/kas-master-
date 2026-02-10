@@ -94,7 +94,6 @@
         const FileText = (p) => <IconWrapper {...p}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></IconWrapper>;
 
         // --- УМНЫЙ КОМПОНЕНТ ДЛЯ РЕКЛАМЫ ---
-        // Теперь он принимает prop "adClass", чтобы ставить разные блоки в разные места
         const AdUnit = ({ adClass }) => {
             return (
                 <div className="print:hidden w-full ad-container-wrapper">
@@ -420,17 +419,10 @@
                                     <img src="f72a202f-7469-4ccd-ae92-c126326506ca.jpg" alt="QR Code" className="w-28 h-28 object-contain rounded-lg shadow-sm border border-slate-100"/>
                                 </div>
                             </div>
-                            
-                            {/* РЕКЛАМА #1: Сайдбар (СТАРЫЙ КОД) */}
-                            <AdUnit adClass="aDgQZr418560" />
-                            
                         </div>
 
                         {/* Правая панель */}
                         <div className="lg:col-span-2 space-y-6">
-                            
-                            {/* РЕКЛАМА #2: Верх (НОВЫЙ КОД) */}
-                            <AdUnit adClass="ThaBdH418560" />
                             
                             {stats ? (
                                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -503,8 +495,10 @@
                     </main>
                     
                     <section className="max-w-6xl mx-auto px-4 pb-8 w-full print:hidden">
-                        {/* РЕКЛАМА #2: Низ (НОВЫЙ КОД) */}
+                        {/* ЗОНА ДЛЯ ВСЕЙ РЕКЛАМЫ (СНИЗУ) */}
+                        <AdUnit adClass="aDgQZr418560" />
                         <AdUnit adClass="ThaBdH418560" />
+                        
                         <SeoDescription />
                     </section>
                     
