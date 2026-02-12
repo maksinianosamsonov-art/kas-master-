@@ -89,7 +89,7 @@
         }
     </style>
 
-    <!-- WORKER SCRIPT (Логика вычислений Ultra) -->
+    <!-- WORKER SCRIPT (Логика вычислений Ultra - ИСПРАВЛЕНА ОШИБКА НАЛОЖЕНИЯ) -->
     <script id="worker-code" type="javascript/worker">
         self.onmessage = function(e) {
             const { mode, parts, stockLength, stockSize, bladeWidth, allowRotation } = e.data;
@@ -106,7 +106,6 @@
 
         // --- 1D OPTIMIZER ---
         function optimizeLinear(parts, stockLength, bladeWidth) {
-            // Разворачиваем детали
             let allPiecesOriginal = [];
             parts.forEach(p => { 
                 for(let i=0; i < p.quantity; i++) allPiecesOriginal.push({ ...p, id: p.id, uid: Math.random() }); 
@@ -120,22 +119,15 @@
             let bestResult = solveLinearGreedy([...allPiecesOriginal], stockLength, bladeWidth, 'desc');
             let bestEfficiency = getLinearEfficiency(bestResult, stockLength);
 
-            // Стратегия 2: Поиск идеальных комбинаций (Exact Match) + Greedy
-            // Пытаемся найти наборы деталей, которые идеально заполняют длину
-            // Это дорогостоящая операция, делаем упрощенно
-            
-            // Стратегия 3: Рандомизированный поиск (Monte Carlo)
-            // Запускаем N итераций с перемешиванием
+            // Стратегия 2: Рандомизированный поиск (Monte Carlo)
             const maxIterations = 2000;
             const startTime = performance.now();
 
             for (let i = 0; i < maxIterations; i++) {
-                if (performance.now() - startTime > 800) break; // Ограничение 800мс
+                if (performance.now() - startTime > 800) break;
 
-                // Shuffle
                 let shuffled = [...allPiecesOriginal].sort(() => Math.random() - 0.5);
                 
-                // Иногда пробуем "умную" сортировку с небольшим шумом
                 if (i % 2 === 0) {
                      shuffled.sort((a, b) => (b.length + Math.random()*10) - (a.length + Math.random()*10));
                 }
@@ -143,7 +135,6 @@
                 let res = solveLinearGreedy(shuffled, stockLength, bladeWidth, 'custom');
                 let eff = getLinearEfficiency(res, stockLength);
 
-                // Критерий улучшения: Меньше хлыстов ИЛИ (те же хлысты, но меньше отход в последнем)
                 if (res.length < bestResult.length || (res.length === bestResult.length && eff > bestEfficiency)) {
                     bestResult = res;
                     bestEfficiency = eff;
@@ -160,7 +151,6 @@
 
             let bars = [];
             
-            // Best Fit Algorithm
             for (let piece of pieces) {
                 let bestBarIndex = -1;
                 let minWaste = Infinity;
@@ -194,18 +184,14 @@
         }
 
         function getLinearEfficiency(bars, stockLength) {
-            // Меньше остатка в последнем баре = лучше, при одинаковом кол-ве баров
-            // Но главный критерий - кол-во баров.
-            // Вернем число: -(КолвоБаров * StockLength + ОстатокПоследнего)
-            // Чем больше число (ближе к 0), тем лучше.
             if (bars.length === 0) return 0;
             let totalWaste = 0;
             bars.forEach(b => totalWaste += b.remaining);
-            return -totalWaste; // Максимизируем (минимизируем отход)
+            return -totalWaste; 
         }
 
 
-        // --- 2D OPTIMIZER ---
+        // --- 2D OPTIMIZER (ИСПРАВЛЕНА ЛОГИКА УДАЛЕНИЯ) ---
         function optimizeSheet(parts, stockSize, bladeWidth, allowRotation) {
             let allRectsOriginal = [];
             parts.forEach(p => { 
@@ -227,7 +213,6 @@
             let minSheetsCount = Infinity;
             let minWasteArea = Infinity;
 
-            // Стратегии сортировки для пробы
             const strategies = [
                 (a, b) => Math.max(b.w, b.h) - Math.max(a.w, a.h), // Max Side
                 (a, b) => (b.w * b.h) - (a.w * a.h), // Area
@@ -235,7 +220,7 @@
                 (a, b) => (b.w + b.h) - (a.w + a.h) // Perimeter
             ];
 
-            // 1. Пробуем детерминированные стратегии
+            // 1. Детерминированные стратегии
             for (let sortFunc of strategies) {
                 let sorted = [...allRectsOriginal].sort(sortFunc);
                 let res = solveGuillotine(sorted, stockSize, bladeWidth, allowRotation);
@@ -248,15 +233,13 @@
                 }
             }
 
-            // 2. Random Permutations (Monte Carlo)
-            // Пытаемся найти удачную последовательность
+            // 2. Monte Carlo
             const maxIterations = 500;
             const startTime = performance.now();
 
             for (let i = 0; i < maxIterations; i++) {
-                if (performance.now() - startTime > 1000) break; // До 1 сек на 2D
+                if (performance.now() - startTime > 1000) break; 
 
-                // Shuffle
                 let shuffled = [...allRectsOriginal].sort(() => Math.random() - 0.5);
                 
                 let res = solveGuillotine(shuffled, stockSize, bladeWidth, allowRotation);
@@ -276,12 +259,11 @@
             let totalArea = sheets.length * stockSize.w * stockSize.h;
             let usedArea = 0;
             sheets.forEach(s => {
-                s.parts.forEach(p => usedArea += p.width * p.height); // Чистая площадь
+                s.parts.forEach(p => usedArea += p.width * p.height);
             });
             return totalArea - usedArea;
         }
 
-        // Guillotine Packer with "Best Short Side Fit" (BSSF) and "Minimize Area" Split Rule
         function solveGuillotine(allRects, stockSize, bladeWidth, allowRotation) {
             let sheets = [];
             let remainingRects = [...allRects];
@@ -299,6 +281,7 @@
 
                 for(let i = 0; i < remainingRects.length; i++) {
                     let rect = remainingRects[i];
+                    // Поиск места
                     let bestNode = findPositionBSSF(sheet.freeRects, rect.w, rect.h, bladeWidth, allowRotation);
                     
                     if (bestNode) {
@@ -311,7 +294,10 @@
                             rotated: bestNode.rotated
                         };
                         sheet.parts.push(placedPart);
+                        
+                        // ВАЖНО: Разделяем пространство используя ИНДЕКС, а не координаты
                         splitFreeRects(sheet.freeRects, bestNode, bladeWidth);
+                        
                         packedIndices.push(i);
                     }
                 }
@@ -323,7 +309,7 @@
                 remainingRects = nextQueue;
 
                 if (sheet.parts.length > 0) sheets.push(sheet);
-                else break; // Fail-safe
+                else break;
             }
             return sheets;
         }
@@ -335,18 +321,19 @@
             for (let i = 0; i < freeRects.length; i++) {
                 const free = freeRects[i];
 
-                // Check normal
+                // Прямая ориентация
                 if (w <= free.w && h <= free.h) {
                     let leftoverW = free.w - w;
                     let leftoverH = free.h - h;
                     let score = Math.min(leftoverW, leftoverH); 
                     if (score < bestScore) {
                         bestScore = score;
+                        // СОХРАНЯЕМ freeIndex ДЛЯ ГАРАНТИРОВАННОГО УДАЛЕНИЯ
                         bestRect = { x: free.x, y: free.y, w: w, h: h, rotated: false, freeIndex: i };
                     }
                 }
 
-                // Check rotated
+                // Поворот
                 if (allowRotation && h <= free.w && w <= free.h) {
                     let leftoverW = free.w - h;
                     let leftoverH = free.h - w;
@@ -361,49 +348,44 @@
         }
 
         function splitFreeRects(freeRects, placedRect, bladeWidth) {
-            let parentIndex = -1;
-            for(let i=0; i<freeRects.length; i++) {
-                if (freeRects[i].x === placedRect.x && freeRects[i].y === placedRect.y) {
-                    parentIndex = i;
-                    break;
-                }
-            }
-            if (parentIndex === -1) return;
+            // FIX: Удаляем по индексу, это 100% надежно
+            const parentIndex = placedRect.freeIndex;
+            
+            // Если индекс некорректен (такого быть не должно, но для безопасности)
+            if (parentIndex === undefined || parentIndex < 0 || parentIndex >= freeRects.length) return;
 
             let parent = freeRects[parentIndex];
+            
+            // Удаляем использованный прямоугольник
             freeRects.splice(parentIndex, 1);
 
-            // Calculate split
+            // Размеры новых свободных зон
             const rightX = parent.x + placedRect.w + bladeWidth;
             const bottomY = parent.y + placedRect.h + bladeWidth;
             const rightW = parent.w - placedRect.w - bladeWidth;
             const bottomH = parent.h - placedRect.h - bladeWidth;
 
-            // Heuristic: Split along the Shorter Axis to maximize the area of the larger remainder
-            // Or "Minimize Area Difference"
-            // Usually, keeping the "larger" rectangle contiguous is better.
-            
-            // Strategy: Compare Area of Max Rect.
-            // Split Horizontally: Top-Right (small), Bottom (Wide) -> Max rect is Bottom.
-            // Split Vertically: Right (Tall), Bottom-Left (small) -> Max rect is Right.
-            
             let splitVertical = false;
             
-            const areaBottomIfHorizontal = parent.w * bottomH; // Широкий снизу
-            const areaRightIfVertical = rightW * parent.h; // Высокий справа
+            // Эвристика: Оставляем максимально большой прямоугольник цельным
+            const areaBottomIfHorizontal = parent.w * bottomH; 
+            const areaRightIfVertical = rightW * parent.h; 
             
             if (areaRightIfVertical > areaBottomIfHorizontal) {
                 splitVertical = true;
             }
 
+            // Добавляем новые свободные зоны ТОЛЬКО если их размер > 0 (с запасом на float)
+            const EPSILON = 0.001;
+
             if (splitVertical) {
-                 // Vertical Split: Right takes full height
-                 if (rightW > 0) freeRects.push({ x: rightX, y: parent.y, w: rightW, h: parent.h });
-                 if (bottomH > 0) freeRects.push({ x: parent.x, y: bottomY, w: placedRect.w, h: bottomH });
+                 // Вертикальный рез: Правый кусок на полную высоту
+                 if (rightW > EPSILON) freeRects.push({ x: rightX, y: parent.y, w: rightW, h: parent.h });
+                 if (bottomH > EPSILON) freeRects.push({ x: parent.x, y: bottomY, w: placedRect.w, h: bottomH });
             } else {
-                 // Horizontal Split: Bottom takes full width
-                 if (bottomH > 0) freeRects.push({ x: parent.x, y: bottomY, w: parent.w, h: bottomH });
-                 if (rightW > 0) freeRects.push({ x: rightX, y: parent.y, w: rightW, h: placedRect.h });
+                 // Горизонтальный рез: Нижний кусок на полную ширину
+                 if (bottomH > EPSILON) freeRects.push({ x: parent.x, y: bottomY, w: parent.w, h: bottomH });
+                 if (rightW > EPSILON) freeRects.push({ x: rightX, y: parent.y, w: rightW, h: placedRect.h });
             }
         }
     </script>
