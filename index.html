@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
-    <title>Кас Мастеръ - Оптимизация раскроя</title>
+    <title>Кас Мастеръ - Калькулятор раскроя</title>
     <meta name="description" content="Оптимизация раскроя с группировкой листов и защитой от ошибок.">
     
     <meta name="yandex-verification" content="f820a1aef559942f" />
@@ -88,7 +88,7 @@
                 const { mode, parts, stockLength, stockSize, bladeWidth, allowRotation } = e.data;
                 const safeBlade = Math.max(0, Number(bladeWidth));
 
-                // 1. Нормализация данных (защита от строк)
+                // Нормализация данных
                 const cleanParts = parts.map(p => ({
                     ...p,
                     length: Number(p.length),
@@ -98,7 +98,6 @@
                 }));
 
                 if (mode === 'linear') {
-                    // 1D: Турнир между Best Fit и First Fit
                     const res1 = optimizeLinearBestFit(cleanParts, Number(stockLength), safeBlade);
                     const res2 = optimizeLinearFirstFit(cleanParts, Number(stockLength), safeBlade);
                     
@@ -108,7 +107,6 @@
                     const waste2 = calculateLinearWaste(res2);
                     self.postMessage(waste1 <= waste2 ? res1 : res2);
                 } else {
-                    // 2D: Турнир стратегий
                     const stock = { w: Number(stockSize.w), h: Number(stockSize.h) };
                     const result = runSheetTournament(cleanParts, stock, safeBlade, allowRotation);
                     
@@ -467,7 +465,10 @@
             const [allowRotation, setAllowRotation] = useState(true);
             const [materialPrice, setMaterialPrice] = useState(0); 
             
-            const [parts, setParts] = useState([]);
+            // SEPARATE STATE FOR PARTS
+            const [linearParts, setLinearParts] = useState([]);
+            const [sheetParts, setSheetParts] = useState([]);
+
             const [results, setResults] = useState(null);
             const [sheetResults, setSheetResults] = useState(null);
             const [isCalculating, setIsCalculating] = useState(false);
@@ -477,6 +478,14 @@
 
             const workerRef = useRef(null);
             const colors = ['bg-blue-500', 'bg-indigo-500', 'bg-violet-500', 'bg-purple-500', 'bg-fuchsia-500', 'bg-pink-500', 'bg-rose-500'];
+
+            // DERIVED STATE
+            const parts = mode === 'linear' ? linearParts : sheetParts;
+            
+            const setParts = (newParts) => {
+                if (mode === 'linear') setLinearParts(newParts);
+                else setSheetParts(newParts);
+            };
 
             useEffect(() => {
                 const workerCode = document.getElementById('worker-code').textContent;
@@ -521,30 +530,42 @@
 
             const handleImport = () => {
                 const lines = importText.trim().split(/\r?\n/);
-                const newParts = [];
+                const newLinParts = [];
+                const newSheetParts = [];
                 const baseId = Date.now();
+                
                 lines.forEach((line, index) => {
                     if (!line.trim()) return;
                     const nums = line.trim().replace(/,/g, '.').split(/[\t\s,;]+/).map(Number).filter(n => !isNaN(n));
                     if (mode === 'linear' && nums.length >= 1) {
-                        newParts.push({ id: baseId + index, name: `Part ${index+1}`, length: nums[0], width: 0, height: 0, quantity: nums[1] || 1, color: colors[index % colors.length] });
+                        newLinParts.push({ id: baseId + index, name: `Part ${index+1}`, length: nums[0], width: 0, height: 0, quantity: nums[1] || 1, color: colors[index % colors.length] });
                     } else if (mode === 'sheet' && nums.length >= 2) {
-                        newParts.push({ id: baseId + index, name: `Part ${index+1}`, length: 0, width: nums[0], height: nums[1], quantity: nums[2] || 1, color: colors[index % colors.length] });
+                        newSheetParts.push({ id: baseId + index, name: `Part ${index+1}`, length: 0, width: nums[0], height: nums[1], quantity: nums[2] || 1, color: colors[index % colors.length] });
                     }
                 });
-                if (newParts.length > 0) { setParts([...parts, ...newParts]); setShowImport(false); setImportText(''); }
+
+                if (mode === 'linear' && newLinParts.length > 0) {
+                    setLinearParts([...linearParts, ...newLinParts]);
+                    setShowImport(false);
+                    setImportText('');
+                } else if (mode === 'sheet' && newSheetParts.length > 0) {
+                    setSheetParts([...sheetParts, ...newSheetParts]);
+                    setShowImport(false);
+                    setImportText('');
+                }
             };
 
             const addPart = () => {
-                setParts([...parts, { 
+                const newPart = { 
                     id: Date.now(), 
                     name: `Деталь ${parts.length + 1}`, 
-                    length: 0, // Starts from 0 
+                    length: 0, 
                     width: 0, 
                     height: 0, 
                     quantity: 1, 
                     color: colors[parts.length % colors.length] 
-                }]);
+                };
+                setParts([...parts, newPart]);
             };
 
             const updatePart = (id, f, v) => setParts(parts.map(p => p.id === id ? { ...p, [f]: v } : p));
@@ -564,7 +585,6 @@
                         const pSig = item.parts.map(p => p.length).sort((a, b) => b - a).join(',');
                         sig = `${item.remaining}|${pSig}`;
                     } else {
-                        // 2D: exact coordinate match for stacking
                         const pSig = item.parts
                             .map(p => `${Math.round(p.x)}:${Math.round(p.y)}:${Math.round(p.currentW)}:${Math.round(p.currentH)}:${p.rotated}`)
                             .sort()
