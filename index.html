@@ -4,11 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
-    <title>Кас Мастеръ - Калькулятор раскроя (Линейный и Листовой) Онлайн</title>
-    <meta name="description" content="Бесплатный сервис для оптимизации раскроя профильной трубы, арматуры, ЛДСП и фанеры. Минимизация отходов, карты раскроя, расчет стоимости. Без регистрации.">
-    <meta name="keywords" content="карта раскроя онлайн, калькулятор раскроя, раскрой трубы, раскрой лдсп, оптимизация резки, программа раскроя, Кас Мастер">
+    <title>Кас Мастеръ - Оптимизация раскроя</title>
+    <meta name="description" content="Оптимизация раскроя с группировкой листов и защитой от ошибок.">
+    
     <meta name="yandex-verification" content="f820a1aef559942f" />
-    <meta name="kadam-verification" content="kadam5bea9ce0a9f1c9bad43201c33cd9ffda" />
 
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📐</text></svg>">
 
@@ -17,17 +16,16 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    <!-- Tailwind Config для кастомных цветов -->
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        primary: '#2563eb', // Насыщенный синий (доверие)
+                        primary: '#2563eb',
                         primaryHover: '#1d4ed8',
-                        secondary: '#f8fafc', // Светлый фон
-                        accent: '#10b981', // Зеленый для успеха
-                        danger: '#ef4444', // Красный для удаления
+                        secondary: '#f8fafc',
+                        accent: '#10b981',
+                        danger: '#ef4444',
                         surface: '#ffffff',
                     },
                     boxShadow: {
@@ -38,639 +36,835 @@
             }
         }
     </script>
-
-    <script type="text/javascript">
-        (function(m,e,t,r,i,k,a){
-            m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
-            m[i].l=1*new Date();
-            for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
-            k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
-        })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=106451853', 'ym');
-
-        ym(106451853, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
-    </script>
-    <noscript><div><img src="https://mc.yandex.ru/watch/106451853" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
     
     <style>
         @media print {
-            header, button, .no-print, .ad-banner, .seo-text, .thwsfd417206 { display: none !important; }
+            header, button, .no-print, .ad-banner, .seo-text, footer, .add-btn, .clear-btn { display: none !important; }
             body { background: white; color: black; }
             .bg-slate-50 { background: white; }
-            .shadow-sm, .shadow-md, .shadow-lg, .shadow-soft, .shadow-card { box-shadow: none !important; }
+            .shadow-soft, .shadow-card { box-shadow: none !important; }
             .bg-slate-900 { background: #333; color: white; }
-            input { border: none; background: transparent; }
-            .print-break-inside-avoid { page-break-inside: avoid; }
-            /* Скрываем рекламу при печати */
-            .ad-container { display: none !important; }
+            input, select { border: none; background: transparent; appearance: none; }
+            .print-break-inside-avoid { page-break-inside: avoid; margin-bottom: 2rem; display: block; }
+            .print-container { width: 100%; }
         }
         .prose h3 { margin-bottom: 0.5em; }
         .prose p { margin-bottom: 0.8em; }
-        .prose ul { list-style-type: disc; padding-left: 1.2em; margin-bottom: 1em; }
+        .bg-stripes {
+            background-color: #f1f5f9;
+            background-image: linear-gradient(45deg, #e2e8f0 25%, transparent 25%, transparent 50%, #e2e8f0 50%, #e2e8f0 75%, transparent 75%, transparent);
+            background-size: 10px 10px;
+        }
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+
+        .ad-container-wrapper {
+            min-height: 90px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #f8fafc;
+            border-radius: 8px;
+            margin: 10px 0;
+            overflow: hidden;
+            border: 1px dashed #e2e8f0;
+        }
         
-        /* Плавные переходы для интерактивности */
-        .transition-all-custom { transition: all 0.2s ease-in-out; }
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #2563eb;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
+
+    <!-- WORKER SCRIPT -->
+    <script id="worker-code" type="javascript/worker">
+        self.onmessage = function(e) {
+            try {
+                const { mode, parts, stockLength, stockSize, bladeWidth, allowRotation } = e.data;
+                const safeBlade = Math.max(0, Number(bladeWidth));
+
+                // 1. Нормализация данных (защита от строк)
+                const cleanParts = parts.map(p => ({
+                    ...p,
+                    length: Number(p.length),
+                    width: Number(p.width),
+                    height: Number(p.height),
+                    quantity: Number(p.quantity)
+                }));
+
+                if (mode === 'linear') {
+                    // 1D: Турнир между Best Fit и First Fit
+                    const res1 = optimizeLinearBestFit(cleanParts, Number(stockLength), safeBlade);
+                    const res2 = optimizeLinearFirstFit(cleanParts, Number(stockLength), safeBlade);
+                    
+                    if(res1.error && res2.error) throw new Error(res1.error);
+                    
+                    const waste1 = calculateLinearWaste(res1);
+                    const waste2 = calculateLinearWaste(res2);
+                    self.postMessage(waste1 <= waste2 ? res1 : res2);
+                } else {
+                    // 2D: Турнир стратегий
+                    const stock = { w: Number(stockSize.w), h: Number(stockSize.h) };
+                    const result = runSheetTournament(cleanParts, stock, safeBlade, allowRotation);
+                    
+                    if (result && result.error) {
+                        self.postMessage({ error: result.error });
+                    } else {
+                        self.postMessage(result);
+                    }
+                }
+            } catch (err) {
+                self.postMessage({ error: err.message || "Ошибка вычислений" });
+            }
+        };
+
+        // --- 1D LOGIC ---
+        function calculateLinearWaste(bars) {
+            if (!bars || bars.error) return Infinity;
+            return bars.reduce((acc, bar) => acc + bar.remaining, 0);
+        }
+
+        function flattenParts(parts) {
+            let res = [];
+            parts.forEach(p => { for(let i=0; i<p.quantity; i++) res.push({ ...p, id: p.id, uid: Math.random() }); });
+            return res;
+        }
+
+        function optimizeLinearFirstFit(parts, stockLength, bladeWidth) {
+            let allPieces = flattenParts(parts);
+            allPieces.sort((a, b) => b.length - a.length);
+            if (allPieces.some(p => p.length > stockLength)) return { error: "Деталь длиннее заготовки!" };
+
+            let bars = [];
+            for (let piece of allPieces) {
+                let placed = false;
+                for (let i = 0; i < bars.length; i++) {
+                    let cut = (bars[i].parts.length > 0 ? bladeWidth : 0);
+                    if (bars[i].remaining >= piece.length + cut) {
+                        bars[i].parts.push(piece);
+                        bars[i].remaining -= (piece.length + cut);
+                        placed = true;
+                        break;
+                    }
+                }
+                if (!placed) bars.push({ id: bars.length + 1, parts: [piece], remaining: stockLength - piece.length });
+            }
+            return bars;
+        }
+
+        function optimizeLinearBestFit(parts, stockLength, bladeWidth) {
+            let allPieces = flattenParts(parts);
+            allPieces.sort((a, b) => b.length - a.length); 
+            if (allPieces.some(p => p.length > stockLength)) return { error: "Деталь длиннее заготовки!" };
+
+            let bars = [];
+            for (let piece of allPieces) {
+                let bestBarIdx = -1;
+                let minWaste = Infinity;
+                for (let i = 0; i < bars.length; i++) {
+                    let cut = (bars[i].parts.length > 0 ? bladeWidth : 0);
+                    let waste = bars[i].remaining - (piece.length + cut);
+                    if (waste >= 0 && waste < minWaste) {
+                        minWaste = waste;
+                        bestBarIdx = i;
+                    }
+                }
+                if (bestBarIdx !== -1) {
+                    let cut = (bars[bestBarIdx].parts.length > 0 ? bladeWidth : 0);
+                    bars[bestBarIdx].parts.push(piece);
+                    bars[bestBarIdx].remaining -= (piece.length + cut);
+                } else {
+                    bars.push({ id: bars.length + 1, parts: [piece], remaining: stockLength - piece.length });
+                }
+            }
+            return bars;
+        }
+
+        // --- 2D LOGIC ---
+        function flattenRects(parts) {
+            let res = [];
+            parts.forEach(p => { 
+                for(let i=0; i<p.quantity; i++) res.push({ 
+                    width: Number(p.width), height: Number(p.height), 
+                    w: Number(p.width), h: Number(p.height), 
+                    data: p, uid: Math.random() 
+                }); 
+            });
+            return res;
+        }
+
+        function isTooBig(rects, stock) {
+            return rects.some(p => Math.min(p.w, p.h) > Math.min(stock.w, stock.h) && Math.max(p.w, p.h) > Math.max(stock.w, stock.h));
+        }
+
+        function runSheetTournament(parts, stockSize, blade, allowRotation) {
+            let allRects = flattenRects(parts);
+            if (isTooBig(allRects, stockSize)) return { error: "Одна из деталей больше размера листа!" };
+
+            const strategies = [
+                { name: 'MaxRects_BSSF_Area', sort: 'area', algo: 'maxrects', metric: 'bssf' },
+                { name: 'MaxRects_BSSF_Side', sort: 'side', algo: 'maxrects', metric: 'bssf' },
+                { name: 'MaxRects_BAF_Area', sort: 'area', algo: 'maxrects', metric: 'baf' },
+                { name: 'Guillotine_Area', sort: 'area', algo: 'guillotine' },
+                { name: 'Shelf_Height', sort: 'height', algo: 'shelf' }
+            ];
+
+            let bestResult = null;
+            let minCost = Infinity;
+
+            for (let strat of strategies) {
+                let sortedRects = [...allRects];
+                if (strat.sort === 'area') sortedRects.sort((a,b) => (b.w * b.h) - (a.w * a.h));
+                else if (strat.sort === 'side') sortedRects.sort((a,b) => Math.max(b.w, b.h) - Math.max(a.w, a.h));
+                else if (strat.sort === 'height') sortedRects.sort((a,b) => b.h - a.h);
+
+                let sheets = [];
+                if (strat.algo === 'maxrects') {
+                    sheets = packMaxRects(sortedRects, stockSize, blade, allowRotation, strat.metric === 'baf');
+                } else if (strat.algo === 'guillotine') {
+                    sheets = packGuillotine(sortedRects, stockSize, blade, allowRotation);
+                } else {
+                    sheets = packShelf(sortedRects, stockSize, blade, allowRotation);
+                }
+
+                if (sheets && !sheets.error) {
+                    let totalSheets = sheets.length;
+                    let totalArea = totalSheets * stockSize.w * stockSize.h;
+                    let pureUsed = 0;
+                    sheets.forEach(s => s.parts.forEach(p => pureUsed += p.width * p.height));
+                    
+                    let waste = totalArea - pureUsed;
+                    // Стоимость: Листы * 1млрд + Отход. Приоритет - кол-во листов.
+                    let cost = totalSheets * 1000000000 + waste;
+
+                    if (cost < minCost) {
+                        minCost = cost;
+                        bestResult = sheets;
+                        bestResult.algoName = strat.name;
+                    }
+                }
+            }
+
+            if (!bestResult) return { error: "Не удалось найти решение." };
+            return bestResult;
+        }
+
+        // --- 2D ALGORITHMS ---
+
+        // Shelf
+        function packShelf(rects, stock, blade, rotate) {
+            let sheets = [];
+            let remaining = JSON.parse(JSON.stringify(rects));
+            
+            while(remaining.length > 0) {
+                let currentSheet = { parts: [] };
+                let x = 0, y = 0, rowH = 0;
+                let nextRemaining = [];
+                let placedCount = 0;
+
+                for (let r of remaining) {
+                    let w = r.w, h = r.h;
+                    let rotated = false;
+
+                    if (rotate && h > w && h > rowH && w <= rowH) { let t=w;w=h;h=t; rotated=true; }
+                    else if (rotate && h > stock.h && w <= stock.h) { let t=w;w=h;h=t; rotated=true; }
+
+                    if (x + w > stock.w) {
+                        x = 0;
+                        y += rowH + (rowH > 0 ? blade : 0);
+                        rowH = 0;
+                    }
+                    if (y + h > stock.h) {
+                        // Не влезло на этот лист
+                        nextRemaining.push(r);
+                        continue; 
+                    }
+
+                    currentSheet.parts.push({ ...r.data, x, y, currentW: w, currentH: h, rotated });
+                    x += w + blade;
+                    rowH = Math.max(rowH, h);
+                    placedCount++;
+                }
+
+                if (placedCount === 0) return { error: "Бесконечный цикл: деталь не помещается на пустой лист." };
+                
+                sheets.push(currentSheet);
+                remaining = nextRemaining;
+            }
+            return sheets;
+        }
+
+        // MaxRects
+        function packMaxRects(rects, stock, blade, rotate, useBAF) {
+            let sheets = [];
+            let remaining = JSON.parse(JSON.stringify(rects));
+
+            while(remaining.length > 0) {
+                let sheet = { w: stock.w, h: stock.h, parts: [], free: [{x:0, y:0, w:stock.w, h:stock.h}] };
+                let nextRemaining = [];
+                let placedCount = 0;
+
+                for (let r of remaining) {
+                    let bestNode = null;
+                    let bestScore = Infinity;
+                    let bestIdx = -1;
+
+                    for (let i = 0; i < sheet.free.length; i++) {
+                        const free = sheet.free[i];
+                        // Normal
+                        if (r.w <= free.w && r.h <= free.h) {
+                            if (!checkCollision(sheet.parts, free.x, free.y, r.w, r.h)) {
+                                let score;
+                                if (useBAF) score = (free.w * free.h) - (r.w * r.h); 
+                                else score = Math.min(free.w - r.w, free.h - r.h); 
+                                
+                                if (score < bestScore) {
+                                    bestScore = score;
+                                    bestNode = { x: free.x, y: free.y, w: r.w, h: r.h, rotated: false };
+                                    bestIdx = i;
+                                }
+                            }
+                        }
+                        // Rotated
+                        if (rotate && r.h <= free.w && r.w <= free.h) {
+                            if (!checkCollision(sheet.parts, free.x, free.y, r.h, r.w)) {
+                                let score;
+                                if (useBAF) score = (free.w * free.h) - (r.h * r.w);
+                                else score = Math.min(free.w - r.h, free.h - r.w);
+
+                                if (score < bestScore) {
+                                    bestScore = score;
+                                    bestNode = { x: free.x, y: free.y, w: r.h, h: r.w, rotated: true };
+                                    bestIdx = i;
+                                }
+                            }
+                        }
+                    }
+
+                    if (bestNode) {
+                        sheet.parts.push({ ...r.data, x: bestNode.x, y: bestNode.y, currentW: bestNode.w, currentH: bestNode.h, rotated: bestNode.rotated });
+                        performSplit(sheet.free, bestIdx, bestNode.w, bestNode.h, blade);
+                        placedCount++;
+                    } else {
+                        nextRemaining.push(r);
+                    }
+                }
+                
+                if (placedCount === 0) return { error: "Невозможно разместить деталь (возможно, слишком велика)." };
+
+                remaining = nextRemaining;
+                sheets.push(sheet);
+            }
+            return sheets;
+        }
+
+        function packGuillotine(rects, stock, blade, rotate) {
+            return packMaxRects(rects, stock, blade, rotate, true); 
+        }
+
+        // HELPERS
+        function checkCollision(placed, x, y, w, h) {
+            const l1=x, r1=x+w, t1=y, b1=y+h;
+            for(let p of placed) {
+                const l2=p.x, r2=p.x+p.currentW, t2=p.y, b2=p.y+p.currentH;
+                if (l1 < r2-0.01 && r1 > l2+0.01 && t1 < b2-0.01 && b1 > t2+0.01) return true;
+            }
+            return false;
+        }
+
+        function performSplit(freeRects, usedIdx, usedW, usedH, blade) {
+            const free = freeRects[usedIdx];
+            freeRects.splice(usedIdx, 1);
+
+            const w = usedW + blade;
+            const h = usedH + blade;
+            const wRem = free.w - w;
+            const hRem = free.h - h;
+
+            const splitHorizontal = free.w < free.h; 
+            const MIN = 1;
+
+            if (splitHorizontal) {
+                if (hRem >= MIN) freeRects.push({ x: free.x, y: free.y + h, w: free.w, h: hRem });
+                if (wRem >= MIN) freeRects.push({ x: free.x + w, y: free.y, w: wRem, h: usedH });
+            } else {
+                if (wRem >= MIN) freeRects.push({ x: free.x + w, y: free.y, w: wRem, h: free.h });
+                if (hRem >= MIN) freeRects.push({ x: free.x, y: free.y + h, w: usedW, h: hRem });
+            }
+        }
+    </script>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans antialiased">
-    
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+        const { useState, useEffect, useMemo, useRef } = React;
 
-        // --- КОМПОНЕНТ РЕКЛАМЫ (ЗАГЛУШКА) ---
-        const AdBlock = ({ id, label }) => (
-            <div className="ad-container w-full my-6 p-4 bg-slate-100 border-2 border-slate-200 border-dashed rounded-lg flex flex-col items-center justify-center text-slate-400 min-h-[120px] transition-opacity duration-500">
-                <span className="text-[10px] uppercase font-bold mb-2 tracking-wider bg-slate-200 px-2 py-0.5 rounded text-slate-500">Реклама</span>
-                <div id={`yandex_rtb_${id}`} className="text-center text-sm">
-                    Рекламный блок ({label})
-                </div>
-            </div>
-        );
+        const Icon = ({ className, children }) => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{children}</svg>;
+        const Settings = () => <Icon><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></Icon>;
+        const Plus = () => <Icon><path d="M5 12h14"/><path d="M12 5v14"/></Icon>;
+        const Trash = () => <Icon><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></Icon>;
+        const Play = () => <Icon><polygon points="5 3 19 12 5 21 5 3"/></Icon>;
+        const Download = () => <Icon><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></Icon>;
+        const ImportIcon = () => <Icon><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></Icon>;
+        const RotateCcw = () => <Icon><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></Icon>;
 
-        // --- ИКОНКИ ---
-        const IconWrapper = ({ children, size = 20, className = "" }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{children}</svg>
-        );
-        const Scissors = (p) => <IconWrapper {...p}><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" x2="8.12" y1="4" y2="15.88"/><line x1="14.47" x2="20" y1="14.48" y2="20"/><line x1="8.12" x2="12" y1="8.12" y2="12"/></IconWrapper>;
-        const Grid = (p) => <IconWrapper {...p}><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></IconWrapper>;
-        const Layers = (p) => <IconWrapper {...p}><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></IconWrapper>;
-        const Settings = (p) => <IconWrapper {...p}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></IconWrapper>;
-        const RotateCcw = (p) => <IconWrapper {...p}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></IconWrapper>;
-        const Plus = (p) => <IconWrapper {...p}><path d="M5 12h14"/><path d="M12 5v14"/></IconWrapper>;
-        const Trash2 = (p) => <IconWrapper {...p}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></IconWrapper>;
-        const Calculator = (p) => <IconWrapper {...p}><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></IconWrapper>;
-        const Download = (p) => <IconWrapper {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></IconWrapper>;
-        const FileText = (p) => <IconWrapper {...p}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></IconWrapper>;
-        
-        // --- КОМПОНЕНТ SEO ---
         const SeoDescription = () => (
             <div className="seo-text mt-12 bg-white rounded-xl border border-slate-200 p-6 md:p-8 shadow-soft">
-                <h3 className="text-xl font-bold text-slate-800 mb-4">Оптимизатор раскроя материалов «Кас Мастеръ»</h3>
+                <h3 className="text-xl font-bold text-slate-800 mb-4 text-center">Оптимизация раскроя</h3>
                 <div className="grid md:grid-cols-2 gap-8 text-sm text-slate-600 leading-relaxed">
                     <div className="prose">
-                        <h4 className="font-bold text-slate-700 mb-2">Линейный раскрой (1D)</h4>
-                        <p>Идеально подходит для работы с погонажными материалами. Если вы занимаетесь сваркой металлоконструкций, монтажом труб или резкой арматуры, этот режим поможет сэкономить до 15-20% материала.</p>
-                        <ul className="text-slate-500">
-                            <li><strong>Алгоритм:</strong> Используется жадный алгоритм (First Fit Decreasing), сортирующий детали по убыванию длины.</li>
-                            <li><strong>Применение:</strong> Профильная труба, уголок, швеллер, брус, плинтус, кабельные каналы.</li>
-                        </ul>
+                        <h4 className="font-bold text-slate-700 mb-2">Турнир Алгоритмов</h4>
+                        <p>Система автоматически тестирует 5 стратегий укладки (MaxRects, Guillotine, Shelf) и выбирает ту, которая дает минимальный отход.</p>
                     </div>
                     <div className="prose">
-                        <h4 className="font-bold text-slate-700 mb-2">Листовой раскрой (2D)</h4>
-                        <p>Предназначен для мебельщиков и тех, кто работает с листовыми материалами. Программа перебирает несколько стратегий укладки, чтобы найти вариант с максимальным КПД.</p>
-                        <ul className="text-slate-500">
-                            <li><strong>Алгоритм:</strong> Гильотинный раскрой с перебором стратегий (по площади, по стороне).</li>
-                            <li><strong>Применение:</strong> ЛДСП, МДФ, фанера, гипсокартон, стальной лист.</li>
-                        </ul>
+                        <h4 className="font-bold text-slate-700 mb-2">Группировка</h4>
+                        <p>Одинаковые карты раскроя автоматически объединяются в группы, что упрощает чтение чертежей и работу в цеху.</p>
                     </div>
                 </div>
             </div>
         );
 
-        // --- ПОДВАЛ ---
+        const AdUnit = ({ adClass }) => <div className="print:hidden w-full ad-container-wrapper"><div className={adClass}></div></div>;
+
+        const StatCard = ({ label, value, unit, color = 'text-slate-900' }) => (
+            <div className="bg-white p-3 md:p-4 rounded-xl shadow-soft border border-slate-200 transition-all hover:shadow-md">
+                <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">{label}</div>
+                <div className={`text-xl md:text-2xl font-bold font-mono ${color}`}>
+                    {value} <span className="text-xs md:text-sm text-slate-400 font-normal ml-0.5">{unit}</span>
+                </div>
+            </div>
+        );
+
         const LegalFooter = () => (
             <footer className="mt-12 border-t border-slate-200 pt-8 pb-12 bg-slate-50">
-                <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6 text-xs text-slate-400">
+                <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6 text-xs text-slate-400">
                     <div className="text-center md:text-left">
-                        <p className="font-medium text-slate-500 mb-1">&copy; 2026 Кас Мастеръ</p>
-                        <p>Сервис работает автономно в вашем браузере.</p>
+                        <p className="font-bold text-slate-500">&copy; 2026 Кас Мастеръ</p>
+                        <p>Алгоритмы работают локально в вашем браузере.</p>
                     </div>
                     <div className="flex gap-6">
-                        <a href="#" onClick={(e)=>{e.preventDefault(); alert("Политика конфиденциальности:\nДанный сайт не собирает и не хранит персональные данные пользователей на сервере.");}} className="hover:text-primary transition-colors">Политика конфиденциальности</a>
-                        <a href="#" onClick={(e)=>{e.preventDefault(); alert("Пользовательское соглашение:\nИспользуя сервис, вы соглашаетесь с тем, что расчеты носят рекомендательный характер.");}} className="hover:text-primary transition-colors">Пользовательское соглашение</a>
+                        <a href="#" onClick={(e)=>{e.preventDefault(); alert("Все расчеты производятся локально.");}} className="hover:text-primary transition-colors underline">Конфиденциальность</a>
                     </div>
                 </div>
+                <div className="emhmqf417206"></div>
             </footer>
         );
 
-        // --- ОСНОВНОЙ КОМПОНЕНТ ---
-        const CuttingOptimizer = () => {
+        // Helper to allow empty string input
+        const handleNumInput = (val) => val === '' ? '' : Number(val);
+
+        const App = () => {
             const [mode, setMode] = useState('linear'); 
             const [stockLength, setStockLength] = useState(6000);
             const [stockSize, setStockSize] = useState({ w: 2500, h: 1250 });
-            const [allowRotation, setAllowRotation] = useState(true);
             const [bladeWidth, setBladeWidth] = useState(3);
+            const [allowRotation, setAllowRotation] = useState(true);
             const [materialPrice, setMaterialPrice] = useState(0); 
             
-            // Раздельное состояние для списков деталей
-            // Это решает проблему "дублирования" деталей в разных режимах
-            const [linearParts, setLinearParts] = useState([]);
-            const [sheetParts, setSheetParts] = useState([]);
-            
-            // Текущий активный список в зависимости от режима
-            const parts = mode === 'linear' ? linearParts : sheetParts;
-            
+            const [parts, setParts] = useState([]);
             const [results, setResults] = useState(null);
             const [sheetResults, setSheetResults] = useState(null);
+            const [isCalculating, setIsCalculating] = useState(false);
+            const [optimizationLog, setOptimizationLog] = useState('');
             const [showImport, setShowImport] = useState(false);
             const [importText, setImportText] = useState('');
-            const [optimizationLog, setOptimizationLog] = useState('');
 
-            const colors = ['bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-amber-500', 'bg-rose-500', 'bg-indigo-500', 'bg-cyan-500', 'bg-lime-600', 'bg-fuchsia-600'];
+            const workerRef = useRef(null);
+            const colors = ['bg-blue-500', 'bg-indigo-500', 'bg-violet-500', 'bg-purple-500', 'bg-fuchsia-500', 'bg-pink-500', 'bg-rose-500'];
 
-            const addPart = () => {
-                const newId = Date.now(); 
-                const newPart = { 
-                    id: newId, 
-                    name: `Деталь ${parts.length + 1}`, 
-                    length: 1000, 
-                    width: 400, 
-                    height: 300, 
-                    quantity: 1, 
-                    color: colors[parts.length % colors.length] 
-                };
-                
-                if (mode === 'linear') {
-                    setLinearParts([...linearParts, newPart]);
-                } else {
-                    setSheetParts([...sheetParts, newPart]);
-                }
-            };
-
-            // Исправленная функция очистки
-            const clearAllParts = () => {
-                if (parts.length === 0) return;
-                
-                if (window.confirm("Удалить все детали из текущего списка?")) {
-                    if (mode === 'linear') {
-                        setLinearParts([]);
-                        setResults(null);
-                    } else {
-                        setSheetParts([]);
-                        setSheetResults(null);
+            useEffect(() => {
+                const workerCode = document.getElementById('worker-code').textContent;
+                const blob = new Blob([workerCode], { type: "text/javascript" });
+                workerRef.current = new Worker(URL.createObjectURL(blob));
+                workerRef.current.onmessage = (e) => {
+                    setIsCalculating(false);
+                    const data = e.data;
+                    if (data.error) {
+                        alert(data.error);
+                        return;
                     }
-                }
-            };
+                    if (Array.isArray(data)) {
+                        if (data.length > 0 && data[0].hasOwnProperty('remaining')) {
+                             setResults(data);
+                             setOptimizationLog(`Линейный расчет завершен: ${data.length} шт.`);
+                        } else {
+                             setSheetResults(data);
+                             const algo = data.algoName ? ` (${data.algoName})` : '';
+                             setOptimizationLog(`Оптимизация завершена${algo}: ${data.length} л.`);
+                        }
+                    }
+                };
+                return () => workerRef.current.terminate();
+            }, []);
 
-            const removePart = (id) => {
-                if (mode === 'linear') {
-                    setLinearParts(linearParts.filter(p => p.id !== id));
-                } else {
-                    setSheetParts(sheetParts.filter(p => p.id !== id));
-                }
-            };
-
-            const updatePart = (id, field, value) => {
-                if (mode === 'linear') {
-                    setLinearParts(linearParts.map(p => p.id === id ? { ...p, [field]: value } : p));
-                } else {
-                    setSheetParts(sheetParts.map(p => p.id === id ? { ...p, [field]: value } : p));
-                }
+            const handleCalculate = () => {
+                if (parts.length === 0) return;
+                setIsCalculating(true);
+                setResults(null);
+                setSheetResults(null);
+                setOptimizationLog('Запуск турнира алгоритмов...');
+                workerRef.current.postMessage({
+                    mode, 
+                    parts: JSON.parse(JSON.stringify(parts)),
+                    stockLength, 
+                    stockSize, 
+                    bladeWidth, 
+                    allowRotation
+                });
             };
 
             const handleImport = () => {
                 const lines = importText.trim().split(/\r?\n/);
                 const newParts = [];
                 const baseId = Date.now();
-
                 lines.forEach((line, index) => {
                     if (!line.trim()) return;
-                    const tokens = line.trim().replace(/,/g, '.').split(/[\t\s,;]+/);
-                    const nums = tokens.map(Number).filter(n => !isNaN(n));
-
+                    const nums = line.trim().replace(/,/g, '.').split(/[\t\s,;]+/).map(Number).filter(n => !isNaN(n));
                     if (mode === 'linear' && nums.length >= 1) {
-                        newParts.push({ id: baseId + index, name: `Импорт ${index + 1}`, length: nums[0], width: 0, height: 0, quantity: nums[1] || 1, color: colors[(parts.length + index) % colors.length] });
+                        newParts.push({ id: baseId + index, name: `Part ${index+1}`, length: nums[0], width: 0, height: 0, quantity: nums[1] || 1, color: colors[index % colors.length] });
                     } else if (mode === 'sheet' && nums.length >= 2) {
-                        newParts.push({ id: baseId + index, name: `Импорт ${index + 1}`, length: 0, width: nums[0], height: nums[1], quantity: nums[2] || 1, color: colors[(parts.length + index) % colors.length] });
+                        newParts.push({ id: baseId + index, name: `Part ${index+1}`, length: 0, width: nums[0], height: nums[1], quantity: nums[2] || 1, color: colors[index % colors.length] });
                     }
                 });
+                if (newParts.length > 0) { setParts([...parts, ...newParts]); setShowImport(false); setImportText(''); }
+            };
 
-                if (newParts.length > 0) {
+            const addPart = () => {
+                setParts([...parts, { 
+                    id: Date.now(), 
+                    name: `Деталь ${parts.length + 1}`, 
+                    length: 0, // Starts from 0 
+                    width: 0, 
+                    height: 0, 
+                    quantity: 1, 
+                    color: colors[parts.length % colors.length] 
+                }]);
+            };
+
+            const updatePart = (id, f, v) => setParts(parts.map(p => p.id === id ? { ...p, [f]: v } : p));
+            const removePart = (id) => setParts(parts.filter(p => p.id !== id));
+
+            // GROUPING LOGIC
+            const groupedResults = useMemo(() => {
+                const rawResults = (mode === 'linear' ? results : sheetResults);
+                if (!rawResults || !Array.isArray(rawResults)) return [];
+                
+                const groups = [];
+                const map = new Map();
+
+                rawResults.forEach((item) => {
+                    let sig;
                     if (mode === 'linear') {
-                        setLinearParts([...linearParts, ...newParts]);
+                        const pSig = item.parts.map(p => p.length).sort((a, b) => b - a).join(',');
+                        sig = `${item.remaining}|${pSig}`;
                     } else {
-                        setSheetParts([...sheetParts, ...newParts]);
+                        // 2D: exact coordinate match for stacking
+                        const pSig = item.parts
+                            .map(p => `${Math.round(p.x)}:${Math.round(p.y)}:${Math.round(p.currentW)}:${Math.round(p.currentH)}:${p.rotated}`)
+                            .sort()
+                            .join('|');
+                        sig = `${item.parts.length}|${pSig}`;
                     }
-                    setImportText('');
-                    setShowImport(false);
-                } else {
-                    alert('Не удалось распознать данные. Проверьте формат.');
-                }
-            };
 
-            // Алгоритмы (остались без изменений логики, но код сжат для краткости)
-            const calculateLinear = () => {
-                let allPieces = [];
-                linearParts.forEach(part => { for (let i = 0; i < part.quantity; i++) allPieces.push({ ...part }); });
-                allPieces.sort((a, b) => b.length - a.length);
-                if (allPieces.some(p => p.length > stockLength)) { alert("Ошибка: Деталь длиннее заготовки!"); return; }
-                let bars = [];
-                allPieces.forEach(piece => {
-                    let bestBarIndex = -1, minWaste = Infinity;
-                    for (let i = 0; i < bars.length; i++) {
-                        const neededSpace = bars[i].parts.length > 0 ? piece.length + bladeWidth : piece.length;
-                        if (bars[i].remaining >= neededSpace) {
-                            const waste = bars[i].remaining - neededSpace;
-                            if (waste < minWaste) { minWaste = waste; bestBarIndex = i; }
-                        }
-                    }
-                    if (bestBarIndex !== -1) {
-                        const bar = bars[bestBarIndex];
-                        const isFirst = bar.parts.length === 0;
-                        const used = isFirst ? piece.length : piece.length + bladeWidth;
-                        bar.parts.push(piece); bar.remaining -= used; bar.usedLength += used;
+                    if (map.has(sig)) {
+                        groups[map.get(sig)].count++;
                     } else {
-                        bars.push({ id: bars.length + 1, parts: [piece], remaining: stockLength - piece.length, usedLength: piece.length, totalLength: stockLength });
+                        map.set(sig, groups.length);
+                        groups.push({ data: item, count: 1 });
                     }
                 });
-                setResults(bars); 
-                // Не трогаем sheetResults
-                setOptimizationLog("Использован алгоритм First Fit Decreasing (FFD).");
-            };
-
-            const calculateSheet = () => {
-                let rawRects = [];
-                sheetParts.forEach(part => { for (let i = 0; i < part.quantity; i++) { rawRects.push({ ...part, uniqueId: `${part.id}-${i}` }); } });
-                if (rawRects.some(p => Math.min(p.width, p.height) > Math.min(stockSize.w, stockSize.h) && Math.max(p.width, p.height) > Math.max(stockSize.w, stockSize.h))) { alert("Ошибка: Деталь больше размера листа!"); return; }
-                const strategies = [{ name: "По площади", sort: (a, b) => (b.width * b.height) - (a.width * a.height) }, { name: "По длинной стороне", sort: (a, b) => Math.max(b.width, b.height) - Math.max(a.width, a.height) }];
-                let bestSolution = null; let bestEfficiency = -1;
-                strategies.forEach(strat => {
-                    let sortedRects = [...rawRects].sort(strat.sort);
-                    let currentSheets = []; let remainingParts = [...sortedRects]; let sheetId = 1;
-                    while (remainingParts.length > 0) {
-                        const { placedParts, packedIndices } = packOneSheet(remainingParts, stockSize, bladeWidth, allowRotation);
-                        if (placedParts.length === 0) break;
-                        currentSheets.push({ id: sheetId++, parts: placedParts });
-                        remainingParts = remainingParts.filter((_, i) => !packedIndices.has(i));
-                    }
-                    const totalArea = currentSheets.length * stockSize.w * stockSize.h;
-                    const usedArea = currentSheets.reduce((acc, s) => acc + s.parts.reduce((pa, p) => pa + (p.width * p.height), 0), 0);
-                    const efficiency = totalArea > 0 ? usedArea / totalArea : 0;
-                    if (efficiency > bestEfficiency) { bestEfficiency = efficiency; bestSolution = currentSheets; }
-                });
-                setSheetResults(bestSolution); 
-                // Не трогаем results
-                setOptimizationLog(`Оптимизация завершена. КПД: ${(bestEfficiency * 100).toFixed(1)}%`);
-            };
-
-            const packOneSheet = (remainingRects, stock, kerf, rotate) => {
-                let freeRects = [{ x: 0, y: 0, w: stock.w, h: stock.h }];
-                let placedParts = []; let packedIndices = new Set();
-                const splitFreeRect = (free, placedX, placedY, placedW, placedH) => {
-                    const newFree = [];
-                    const rightX = placedX + placedW + kerf; const bottomY = placedY + placedH + kerf;
-                    if (rightX < free.x + free.w) newFree.push({ x: rightX, y: free.y, w: free.x + free.w - rightX, h: free.h });
-                    if (bottomY < free.y + free.h) newFree.push({ x: free.x, y: bottomY, w: Math.min(placedW, free.w), h: free.y + free.h - bottomY });
-                    return newFree;
-                };
-                for (let i = 0; i < remainingRects.length; i++) {
-                    if (packedIndices.has(i)) continue;
-                    const part = remainingRects[i];
-                    let bestScore = Infinity; let bestPlacement = null; let bestNewFree = null;
-                    for (let f = 0; f < freeRects.length; f++) {
-                        const free = freeRects[f];
-                        if (part.width <= free.w && part.height <= free.h) {
-                            const score = (free.w - part.width) * (free.h - part.height);
-                            if (score < bestScore) { bestScore = score; bestPlacement = { rectIndex: f, rotated: false, x: free.x, y: free.y, w: part.width, h: part.height }; bestNewFree = splitFreeRect(free, free.x, free.y, part.width, part.height); }
-                        }
-                        if (rotate && part.height <= free.w && part.width <= free.h) {
-                            const score = (free.w - part.height) * (free.h - part.width);
-                            if (score < bestScore) { bestScore = score; bestPlacement = { rectIndex: f, rotated: true, x: free.x, y: free.y, w: part.height, h: part.width }; bestNewFree = splitFreeRect(free, free.x, free.y, part.height, part.width); }
-                        }
-                    }
-                    if (bestPlacement) {
-                        const { rectIndex, rotated, x, y, w, h } = bestPlacement;
-                        placedParts.push({ ...part, x, y, currentW: w, currentH: h, rotated });
-                        packedIndices.add(i);
-                        freeRects.splice(rectIndex, 1); freeRects.push(...bestNewFree);
-                        freeRects = freeRects.filter((a, idx) => {
-                            if (a.w <= 0 || a.h <= 0) return false;
-                            for (let j = 0; j < freeRects.length; j++) { if (j !== idx) { const b = freeRects[j]; if (a.x >= b.x && a.y >= b.y && a.x + a.w <= b.x + b.w && a.y + a.h <= b.y + b.h) return false; } }
-                            return true;
-                        });
-                    }
-                }
-                return { placedParts, packedIndices };
-            };
-
-            const handleCalculate = () => { if (mode === 'linear') calculateLinear(); else calculateSheet(); };
+                return groups;
+            }, [results, sheetResults, mode]);
 
             const stats = useMemo(() => {
                 if (mode === 'linear' && results) {
-                    const totalStock = results.length * stockLength; const used = results.reduce((acc, b) => acc + b.parts.reduce((pa, p) => pa + p.length, 0), 0); const wasteVal = totalStock - used; const efficiency = ((used / totalStock) * 100).toFixed(1); const totalCost = (totalStock / 1000) * materialPrice; const wasteCost = (wasteVal / 1000) * materialPrice;
-                    return { totalItems: results.length, efficiency, waste: wasteVal.toFixed(0), unit: 'мм', areaUnit: 'м', totalCost: totalCost.toFixed(0), wasteCost: wasteCost.toFixed(0), hasPrice: materialPrice > 0 };
+                    const total = results.length * stockLength;
+                    const used = results.reduce((acc, b) => acc + b.parts.reduce((a, p) => a + p.length, 0), 0);
+                    return { totalItems: results.length, efficiency: ((used/total)*100).toFixed(1), waste: (total-used).toFixed(0), unit: 'мм', cost: (total/1000*materialPrice).toFixed(0), wasteCost: ((total-used)/1000*materialPrice).toFixed(0), hasPrice: materialPrice > 0 };
                 } else if (mode === 'sheet' && sheetResults) {
-                    const totalAreaMM = sheetResults.length * stockSize.w * stockSize.h; const usedAreaMM = sheetResults.reduce((acc, s) => acc + s.parts.reduce((pa, p) => pa + (p.width * p.height), 0), 0); const efficiency = ((usedAreaMM / totalAreaMM) * 100).toFixed(1); const wasteAreaMM = totalAreaMM - usedAreaMM; const totalAreaM2 = totalAreaMM / 1000000; const wasteAreaM2 = wasteAreaMM / 1000000; const totalCost = totalAreaM2 * materialPrice; const wasteCost = wasteAreaM2 * materialPrice;
-                    return { totalItems: sheetResults.length, efficiency, waste: wasteAreaM2.toFixed(3), unit: 'мм²', areaUnit: 'м²', totalCost: totalCost.toFixed(0), wasteCost: wasteCost.toFixed(0), hasPrice: materialPrice > 0 };
+                    const total = sheetResults.length * stockSize.w * stockSize.h;
+                    const used = sheetResults.reduce((acc, s) => acc + s.parts.reduce((a, p) => a + (p.width * p.height), 0), 0);
+                    return { totalItems: sheetResults.length, efficiency: ((used/total)*100).toFixed(1), waste: ((total-used)/1e6).toFixed(3), unit: 'мм²', cost: (total/1e6*materialPrice).toFixed(0), wasteCost: ((total-used)/1e6*materialPrice).toFixed(0), hasPrice: materialPrice > 0 };
                 }
                 return null;
             }, [results, sheetResults, mode, stockLength, stockSize, materialPrice]);
 
+            let globalIndex = 1;
+
             return (
-                <div className="min-h-screen pb-10 flex flex-col bg-slate-50">
-                    {/* Header */}
-                    <header className="bg-white shadow-soft sticky top-0 z-20 print:hidden border-b border-slate-100">
-                        <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-4">
-                            <div className="flex items-center gap-3">
+                <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-12">
+                    {/* NAV */}
+                    <nav className="bg-white border-b border-slate-200 sticky top-0 z-30 print:hidden">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-primary/10 p-2 rounded-lg text-primary text-2xl">📐</div>
                                 <div>
-                                    <h1 className="text-xl font-extrabold text-slate-800 tracking-tight">Кас Мастеръ</h1>
-                                    <p className="text-xs text-slate-500 font-medium">Оптимизатор раскроя</p>
+                                    <h1 className="text-xl font-bold tracking-tight text-slate-900">Кас Мастеръ</h1>
                                 </div>
                             </div>
-                            
-                            {/* Переключатель режимов (Tabs) */}
-                            <div className="bg-slate-100 p-1 rounded-lg flex shadow-inner">
-                                <button onClick={() => setMode('linear')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold transition-all-custom ${mode === 'linear' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                                    <Scissors size={16} /> Линейный
-                                </button>
-                                <button onClick={() => setMode('sheet')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold transition-all-custom ${mode === 'sheet' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                                    <Layers size={16} /> Листовой
-                                </button>
+                            <div className="flex bg-slate-100 p-1 rounded-lg">
+                                <button onClick={() => {setMode('linear'); setResults(null);}} className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${mode === 'linear' ? 'bg-white shadow text-primary' : 'text-slate-500 hover:text-slate-700'}`}>Линейный</button>
+                                <button onClick={() => {setMode('sheet'); setSheetResults(null);}} className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${mode === 'sheet' ? 'bg-white shadow text-primary' : 'text-slate-500 hover:text-slate-700'}`}>Листовой</button>
                             </div>
                         </div>
-                    </header>
+                    </nav>
 
-                    <main className="max-w-6xl mx-auto p-4 md:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8 flex-grow">
-                        
-                        {/* Левая колонка - Ввод данных */}
-                        <div className="lg:col-span-1 space-y-6">
-                            
-                            {/* Карточка настроек материала */}
-                            <div className="bg-surface rounded-xl shadow-card border border-slate-100 overflow-hidden">
-                                <div className="p-4 bg-slate-50 border-b border-slate-100">
-                                    <h2 className="font-bold text-slate-700 flex items-center gap-2 text-sm uppercase tracking-wide">
-                                        <Settings size={16} className="text-primary" /> Параметры заготовки
-                                    </h2>
+                    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        {/* LEFT SIDEBAR: INPUTS */}
+                        <div className="lg:col-span-4 space-y-6 no-print">
+                            {/* CONFIG */}
+                            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                                <div className="px-5 py-4 bg-slate-50 border-b border-slate-100 flex items-center gap-2 font-bold text-slate-700 text-sm uppercase tracking-wide">
+                                    <Settings /> Параметры материала
                                 </div>
                                 <div className="p-5 space-y-5">
                                     {mode === 'linear' ? (
                                         <div>
                                             <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Длина хлыста (мм)</label>
-                                            <input type="number" value={stockLength} onChange={(e) => setStockLength(Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-lg font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all-custom"/>
+                                            <input type="number" value={stockLength} onChange={(e) => setStockLength(handleNumInput(e.target.value))} className="block w-full rounded-lg border-slate-200 bg-slate-50 p-2.5 text-sm font-mono font-bold focus:border-primary focus:ring-primary/20 transition-all"/>
                                         </div>
                                     ) : (
-                                        <div className="grid grid-cols-2 gap-3">
+                                        <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Ширина</label>
-                                                <input type="number" value={stockSize.w} onChange={(e) => setStockSize({...stockSize, w: Number(e.target.value)})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-lg font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all-custom"/>
+                                                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Ширина (мм)</label>
+                                                <input type="number" value={stockSize.w} onChange={(e) => setStockSize(s => ({...s, w: handleNumInput(e.target.value)}))} className="block w-full rounded-lg border-slate-200 bg-slate-50 p-2.5 text-sm font-mono font-bold focus:border-primary focus:ring-primary/20 transition-all"/>
                                             </div>
                                             <div>
-                                                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Высота</label>
-                                                <input type="number" value={stockSize.h} onChange={(e) => setStockSize({...stockSize, h: Number(e.target.value)})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-lg font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all-custom"/>
+                                                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Высота (мм)</label>
+                                                <input type="number" value={stockSize.h} onChange={(e) => setStockSize(s => ({...s, h: handleNumInput(e.target.value)}))} className="block w-full rounded-lg border-slate-200 bg-slate-50 p-2.5 text-sm font-mono font-bold focus:border-primary focus:ring-primary/20 transition-all"/>
                                             </div>
                                         </div>
                                     )}
-                                    
-                                    <div className="grid grid-cols-2 gap-3 pt-2">
+                                    <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Пропил (мм)</label>
-                                            <input type="number" value={bladeWidth} onChange={(e) => setBladeWidth(Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono text-slate-600 focus:outline-none focus:border-slate-400"/>
+                                            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Толщина реза (мм)</label>
+                                            <input type="number" value={bladeWidth} onChange={(e) => setBladeWidth(handleNumInput(e.target.value))} className="block w-full rounded-lg border-slate-200 bg-slate-50 p-2.5 text-sm font-mono font-bold focus:border-primary focus:ring-primary/20 transition-all"/>
                                         </div>
                                         <div>
-                                            <label className="text-xs font-bold text-emerald-600/80 uppercase mb-1 block">Цена {mode==='linear'?'/м':'/м²'}</label>
-                                            <input type="number" value={materialPrice} onChange={(e) => setMaterialPrice(Number(e.target.value))} className="w-full bg-emerald-50/50 border border-emerald-100 rounded-lg px-3 py-2 text-sm font-mono text-emerald-700 placeholder-emerald-300/50 focus:outline-none focus:border-emerald-300" placeholder="0"/>
+                                            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Цена за ед.</label>
+                                            <input type="number" value={materialPrice} onChange={(e) => setMaterialPrice(handleNumInput(e.target.value))} className="block w-full rounded-lg border-slate-200 bg-slate-50 p-2.5 text-sm font-mono font-bold focus:border-primary focus:ring-primary/20 transition-all"/>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Карточка списка деталей */}
-                            <div className="bg-surface rounded-xl shadow-card border border-slate-100 overflow-hidden flex flex-col h-[500px]">
-                                <div className="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center shrink-0">
-                                    <h2 className="font-bold text-slate-700 flex items-center gap-2 text-sm uppercase tracking-wide">
-                                        <Grid size={16} className="text-primary" /> Список деталей
-                                    </h2>
-                                    <div className="flex flex-wrap gap-2 justify-end">
-                                        {mode === 'sheet' && (
-                                            <button onClick={() => setAllowRotation(!allowRotation)} className={`flex items-center gap-1 px-2 py-1.5 rounded-md border text-xs font-medium transition-all-custom ${allowRotation ? 'bg-primary/10 text-primary border-primary/20' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`} title={allowRotation ? "Вращение разрешено" : "Вращение запрещено"}>
-                                                <RotateCcw size={14} />
-                                                <span>{allowRotation ? 'Вращение: Да' : 'Вращение: Нет'}</span>
-                                            </button>
-                                        )}
-                                        <button onClick={() => setShowImport(!showImport)} className={`flex items-center gap-1 px-2 py-1.5 rounded-md border text-xs font-medium transition-all-custom ${showImport ? 'bg-primary text-white border-primary' : 'bg-white text-slate-500 border-slate-200 hover:border-primary hover:text-primary'}`} title="Импорт">
-                                            <FileText size={14} />
-                                            <span>Импорт</span>
-                                        </button>
-                                        <button onClick={clearAllParts} disabled={parts.length === 0} className="flex items-center gap-1 px-2 py-1.5 rounded-md border border-slate-200 bg-white text-slate-400 hover:text-danger hover:border-danger disabled:opacity-50 disabled:hover:text-slate-400 disabled:hover:border-slate-200 transition-all-custom" title="Очистить все">
-                                            <Trash2 size={14} />
-                                            <span>Очистить</span>
-                                        </button>
+                            {/* PARTS LIST */}
+                            <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col h-[500px]">
+                                <div className="px-5 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                                    <div className="font-bold text-slate-700 text-sm uppercase tracking-wide flex items-center gap-2">Детали <span className="bg-slate-200 text-slate-600 rounded-full px-2 py-0.5 text-xs">{parts.length}</span></div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => setShowImport(!showImport)} className="p-1.5 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-md transition-colors"><ImportIcon /></button>
+                                        <button onClick={() => { if(confirm('Очистить?')) {setParts([]); setResults(null); setSheetResults(null);} }} className="p-1.5 text-slate-400 hover:text-danger hover:bg-slate-100 rounded-md transition-colors"><Trash /></button>
                                     </div>
                                 </div>
                                 
-                                <div className="flex-grow overflow-y-auto p-4 bg-slate-50/30">
-                                    {showImport ? (
-                                        <div className="h-full flex flex-col animate-in fade-in zoom-in-95 duration-200">
-                                            <div className="text-xs text-slate-500 mb-2 font-medium">Формат: {mode === 'linear' ? "Длина Количество" : "Ширина Высота Количество"}</div>
-                                            <textarea className="w-full flex-grow p-3 border border-slate-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary mb-3 shadow-inner" placeholder={mode === 'linear' ? "1500 5\n2300 2" : "500 400 10\n1200 600 5"} value={importText} onChange={(e) => setImportText(e.target.value)}></textarea>
-                                            <button onClick={handleImport} className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-medium shadow-sm transition-all-custom text-sm">Вставить данные</button>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-3">
-                                            {parts.length === 0 && (
-                                                <div className="p-6 text-center border-2 border-dashed border-slate-200 rounded-lg bg-slate-50">
-                                                     <h3 className="text-sm font-bold text-slate-700 mb-2">👋 С чего начать?</h3>
-                                                     <ul className="text-xs text-slate-500 space-y-1 text-left inline-block">
-                                                         <li>1. Укажите размеры заготовки (сверху слева).</li>
-                                                         <li>2. Добавьте детали кнопкой <b>+</b> или через <b>Импорт</b>.</li>
-                                                         <li>3. Нажмите кнопку <b>Рассчитать</b> внизу.</li>
-                                                     </ul>
-                                                </div>
-                                            )}
-                                            {parts.map((part) => (
-                                                <div key={part.id} className="group relative bg-white p-3 rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-all-custom">
-                                                    <div className="flex justify-between items-start mb-2">
-                                                        <input type="text" value={part.name} onChange={(e) => updatePart(part.id, 'name', e.target.value)} className="font-medium text-slate-700 w-full focus:outline-none focus:border-b border-primary/30 text-sm bg-transparent" placeholder="Название"/>
-                                                        <button onClick={() => removePart(part.id)} className="text-slate-300 hover:text-danger ml-2"><Trash2 size={14} /></button>
-                                                    </div>
-                                                    <div className="flex gap-2 items-end">
-                                                        {mode === 'linear' ? (
-                                                            <div className="flex-1"><label className="text-[9px] uppercase text-slate-400 font-bold block mb-0.5">Длина</label><input type="number" value={part.length} onChange={(e) => updatePart(part.id, 'length', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm font-mono font-bold text-slate-700"/></div>
-                                                        ) : (
-                                                            <React.Fragment>
-                                                                <div className="flex-1"><label className="text-[9px] uppercase text-slate-400 font-bold block mb-0.5">Ширина</label><input type="number" value={part.width} onChange={(e) => updatePart(part.id, 'width', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm font-mono font-bold text-slate-700"/></div>
-                                                                <span className="pb-2 text-slate-300 text-xs">x</span>
-                                                                <div className="flex-1"><label className="text-[9px] uppercase text-slate-400 font-bold block mb-0.5">Высота</label><input type="number" value={part.height} onChange={(e) => updatePart(part.id, 'height', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm font-mono font-bold text-slate-700"/></div>
-                                                            </React.Fragment>
-                                                        )}
-                                                        <div className="w-16"><label className="text-[9px] uppercase text-slate-400 font-bold block mb-0.5">Кол-во</label><input type="number" value={part.quantity} onChange={(e) => updatePart(part.id, 'quantity', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm font-mono text-center text-slate-700"/></div>
-                                                    </div>
-                                                    <div className={`absolute left-0 top-0 bottom-0 w-1.5 rounded-l-lg ${part.color}`}></div>
-                                                </div>
-                                            ))}
-                                            <button onClick={addPart} className="w-full py-2 border-2 border-dashed border-slate-300 text-slate-500 rounded-lg hover:border-primary hover:text-primary hover:bg-primary/5 transition-all-custom text-sm font-medium flex justify-center items-center gap-1">
-                                                <Plus size={16} /> Добавить строку
-                                            </button>
+                                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                                    {showImport && (
+                                        <div className="mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200 animate-in fade-in slide-in-from-top-2">
+                                            <textarea value={importText} onChange={(e) => setImportText(e.target.value)} placeholder="1000 5 (Размер Кол-во)" className="w-full h-24 text-sm font-mono border-slate-300 rounded-md mb-2 focus:ring-0 focus:border-primary"></textarea>
+                                            <button onClick={handleImport} className="w-full py-1.5 bg-slate-800 text-white text-xs font-bold rounded hover:bg-slate-700">Добавить</button>
                                         </div>
                                     )}
+
+                                    {mode === 'sheet' && (
+                                        <button onClick={() => setAllowRotation(!allowRotation)} className={`w-full py-2 mb-2 rounded-lg text-xs font-bold border border-dashed flex justify-center items-center gap-2 transition-all ${allowRotation ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-slate-300 text-slate-400'}`}>
+                                            Вращение {allowRotation ? 'ВКЛ' : 'ВЫКЛ'}
+                                        </button>
+                                    )}
+
+                                    {parts.map(p => (
+                                        <div key={p.id} className="group relative flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl hover:border-primary/50 hover:shadow-sm transition-all">
+                                            <div className={`w-1.5 self-stretch rounded-full ${p.color}`}></div>
+                                            <div className="flex-1 min-w-0">
+                                                <input value={p.name} onChange={(e) => updatePart(p.id, 'name', e.target.value)} className="block w-full text-xs font-bold text-slate-700 bg-transparent border-none p-0 focus:ring-0 mb-1 placeholder:text-slate-300" placeholder="Name" />
+                                                <div className="flex items-center gap-2">
+                                                    {mode === 'linear' ? (
+                                                        <input type="number" value={p.length} onChange={(e) => updatePart(p.id, 'length', handleNumInput(e.target.value))} className="w-16 bg-slate-50 border-none rounded px-1.5 py-0.5 text-xs font-mono font-bold text-slate-600 text-center focus:ring-1 focus:ring-primary"/>
+                                                    ) : (
+                                                        <>
+                                                            <input type="number" value={p.width} onChange={(e) => updatePart(p.id, 'width', handleNumInput(e.target.value))} className="w-14 bg-slate-50 border-none rounded px-1.5 py-0.5 text-xs font-mono font-bold text-slate-600 text-center focus:ring-1 focus:ring-primary"/>
+                                                            <span className="text-slate-300 text-xs">x</span>
+                                                            <input type="number" value={p.height} onChange={(e) => updatePart(p.id, 'height', handleNumInput(e.target.value))} className="w-14 bg-slate-50 border-none rounded px-1.5 py-0.5 text-xs font-mono font-bold text-slate-600 text-center focus:ring-1 focus:ring-primary"/>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <label className="text-[9px] text-slate-400 uppercase font-bold block mb-0.5">Кол-во</label>
+                                                <input type="number" value={p.quantity} onChange={(e) => updatePart(p.id, 'quantity', handleNumInput(e.target.value))} className="w-12 bg-slate-100 border-none rounded px-1 py-0.5 text-sm font-mono font-bold text-center focus:ring-1 focus:ring-primary"/>
+                                            </div>
+                                            <button onClick={() => removePart(p.id)} className="absolute -top-2 -right-2 bg-white text-slate-300 hover:text-danger shadow-sm border border-slate-100 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"><Trash /></button>
+                                        </div>
+                                    ))}
+                                    
+                                    <button onClick={addPart} className="w-full py-4 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 font-bold text-sm hover:border-primary hover:text-primary hover:bg-primary/5 transition-all flex flex-col items-center justify-center gap-1">
+                                        <Plus /> Добавить деталь
+                                    </button>
                                 </div>
-                                <div className="p-4 bg-white border-t border-slate-100 z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-                                    <button onClick={handleCalculate} disabled={parts.length === 0} className="w-full py-3.5 bg-primary hover:bg-primaryHover text-white rounded-xl font-bold text-lg shadow-lg shadow-primary/30 active:transform active:scale-[0.98] transition-all-custom flex justify-center items-center gap-2 disabled:opacity-50 disabled:shadow-none">
-                                        <Calculator size={20} /> Рассчитать раскрой
+                                
+                                <div className="p-4 border-t border-slate-100 bg-slate-50">
+                                    <button onClick={handleCalculate} disabled={isCalculating || parts.length === 0} className="w-full py-3.5 bg-primary hover:bg-primaryHover text-white rounded-xl font-bold shadow-lg shadow-primary/30 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98]">
+                                        {isCalculating ? <div className="loader"></div> : <Play />} 
+                                        {isCalculating ? 'Оптимизация...' : 'Рассчитать раскрой'}
                                     </button>
                                 </div>
                             </div>
-                            
-                            {/* Блок поддержки */}
-                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
-                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Поддержать проект</p>
-                                <div className="flex flex-col items-center gap-2">
-                                    <div className="p-2 bg-white rounded-lg border border-slate-100 shadow-sm">
-                                        <img src="f72a202f-7469-4ccd-ae92-c126326506ca.jpg" alt="QR Code" className="w-24 h-24 object-contain opacity-90 hover:opacity-100 transition-opacity"/>
-                                    </div>
-                                </div>
-                            </div>
-
                         </div>
 
-                        {/* Правая колонка - Результаты */}
-                        <div className="lg:col-span-2 flex flex-col gap-6">
-                            
-                            <AdBlock id="R-A-12345-1" label="Верхний" />
-
-                            {stats ? (
-                                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                    {/* Статистика (Карточки) */}
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        <div className="bg-white p-4 rounded-xl shadow-soft border border-slate-100">
-                                            <div className="text-xs font-bold text-slate-400 uppercase mb-1">Всего {mode === 'linear' ? 'хлыстов' : 'листов'}</div>
-                                            <div className="text-2xl font-bold text-slate-800">{stats.totalItems} <span className="text-sm font-normal text-slate-400">шт</span></div>
-                                        </div>
-                                        <div className="bg-white p-4 rounded-xl shadow-soft border border-slate-100">
-                                            <div className="text-xs font-bold text-slate-400 uppercase mb-1">Полезный объем</div>
-                                            <div className="text-2xl font-bold text-primary">{stats.efficiency}%</div>
-                                        </div>
-                                        {stats.hasPrice ? (
-                                            <>
-                                                <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-                                                    <div className="text-xs font-bold text-emerald-600 uppercase mb-1">Цена материала</div>
-                                                    <div className="text-xl font-bold text-emerald-800 font-mono">{stats.totalCost} ₽</div>
-                                                </div>
-                                                <div className="bg-rose-50 p-4 rounded-xl border border-rose-100">
-                                                    <div className="text-xs font-bold text-rose-600 uppercase mb-1">Цена отходов</div>
-                                                    <div className="text-xl font-bold text-rose-800 font-mono">{stats.wasteCost} ₽</div>
-                                                </div>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <div className="bg-white p-4 rounded-xl shadow-soft border border-slate-100">
-                                                     <div className="text-xs font-bold text-slate-400 uppercase mb-1">Общий расход</div>
-                                                     <div className="text-2xl font-bold text-slate-800">{mode === 'linear' ? (stats.totalItems * stockLength / 1000).toFixed(1) : ((stats.totalItems * stockSize.w * stockSize.h) / 1000000).toFixed(2)} <span className="text-sm font-normal text-slate-400">{stats.areaUnit}</span></div>
-                                                </div>
-                                                <div className="bg-white p-4 rounded-xl shadow-soft border border-slate-100">
-                                                    <div className="text-xs font-bold text-slate-400 uppercase mb-1">Отходы</div>
-                                                    <div className="text-2xl font-bold text-rose-500">{stats.waste} <span className="text-sm font-normal text-slate-400">{mode === 'linear' ? 'мм' : 'м²'}</span></div>
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-
-                                    {/* Центральная реклама */}
-                                    <AdBlock id="R-A-12345-2" label="Центральный" />
-
-                                    {/* Визуализация */}
-                                    <div className="bg-white rounded-xl shadow-card border border-slate-200 overflow-hidden">
-                                        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                                            <h3 className="font-bold text-slate-700">Карта раскроя</h3>
-                                            <button onClick={() => window.print()} className="flex items-center gap-2 text-sm font-medium text-primary hover:text-primaryHover bg-white px-3 py-1.5 rounded-lg border border-slate-200 hover:border-primary/30 transition-all-custom shadow-sm"><Download size={16} /> Печать / PDF</button>
-                                        </div>
-                                        <div className="p-6 space-y-8 bg-slate-50/50">
-                                            {mode === 'linear' && results && results.map((bar, index) => (
-                                                <div key={bar.id} className="print-break-inside-avoid">
-                                                    <div className="flex justify-between text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">
-                                                        <span>Заготовка #{index + 1}</span>
-                                                        <span>Остаток: {bar.remaining} мм</span>
-                                                    </div>
-                                                    <div className="h-14 w-full bg-white rounded-lg border border-slate-300 relative flex overflow-hidden shadow-sm">
-                                                        {bar.parts.map((part, pIndex) => (
-                                                            <React.Fragment key={pIndex}>
-                                                                <div className={`h-full ${part.color} border-r border-white/20 flex items-center justify-center relative group cursor-default hover:brightness-110 transition-all`} style={{ width: `${(part.length / stockLength) * 100}%` }}>
-                                                                    <span className="text-white text-xs font-bold drop-shadow-md truncate px-1">{part.length}</span>
-                                                                    <div className="absolute bottom-full mb-1 hidden group-hover:block bg-slate-800 text-white text-[10px] py-1 px-2 rounded shadow-lg whitespace-nowrap z-10">{part.name}</div>
-                                                                </div>
-                                                                {pIndex < bar.parts.length - 1 && bladeWidth > 0 && (<div className="h-full bg-slate-400/50 w-px relative group" style={{ width: `${(bladeWidth / stockLength) * 100}%` }} title={`Рез ${bladeWidth}мм`}></div>)}
-                                                            </React.Fragment>
-                                                        ))}
-                                                        <div className="h-full bg-[url('https://www.transparenttextures.com/patterns/diagonal-stripes.png')] bg-slate-100 flex-1 opacity-50" />
-                                                    </div>
-                                                </div>
-                                            ))}
-                                            
-                                            {mode === 'sheet' && sheetResults && sheetResults.map((sheet, index) => (
-                                                <div key={sheet.id} className="print-break-inside-avoid mb-8 last:mb-0">
-                                                    <div className="flex justify-between items-center mb-2 px-1">
-                                                        <span className="font-bold text-slate-700">Лист #{index + 1}</span>
-                                                        <span className="text-xs font-mono text-slate-400 bg-white px-2 py-1 rounded border border-slate-200">{stockSize.w} x {stockSize.h}</span>
-                                                    </div>
-                                                    <div className="w-full bg-white border-2 border-slate-800 relative shadow-md overflow-hidden" style={{ aspectRatio: `${stockSize.w} / ${stockSize.h}` }}>
-                                                        <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/diagonal-stripes.png')]"></div>
-                                                        {sheet.parts.map((part, pIndex) => (
-                                                            <div key={pIndex} className={`absolute ${part.color} border border-slate-900/10 hover:border-white hover:z-10 group flex flex-col items-center justify-center text-white text-[10px] md:text-xs font-bold transition-all shadow-sm`} 
-                                                                 style={{ left: `${(part.x / stockSize.w) * 100}%`, top: `${(part.y / stockSize.h) * 100}%`, width: `${(part.currentW / stockSize.w) * 100}%`, height: `${(part.currentH / stockSize.h) * 100}%` }}>
-                                                                <span className="drop-shadow-md pointer-events-none truncate max-w-full px-1">{part.name}</span>
-                                                                <div className="opacity-0 group-hover:opacity-100 absolute inset-0 bg-black/20 flex items-center justify-center transition-opacity">
-                                                                    <span className="bg-black/70 px-1.5 py-0.5 rounded text-[9px] pointer-events-none whitespace-nowrap">{part.currentW}x{part.currentH}</span>
-                                                                </div>
-                                                                {part.rotated && <div className="absolute top-1 right-1 bg-black/30 rounded-full p-0.5"><RotateCcw size={8} /></div>}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="h-full flex flex-col items-center justify-center text-slate-400 p-12 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50 min-h-[400px]">
-                                    <div className="bg-white p-6 rounded-full mb-4 shadow-sm border border-slate-100">
-                                        {mode === 'linear' ? <Scissors size={48} className="text-slate-300" /> : <Layers size={48} className="text-slate-300" />}
-                                    </div>
-                                    <h3 className="text-lg font-bold text-slate-600 mb-2">Готов к расчету</h3>
-                                    <p className="text-center max-w-xs text-sm text-slate-500">Заполните параметры слева и нажмите кнопку "Рассчитать раскрой"</p>
+                        {/* RIGHT CONTENT: RESULTS */}
+                        <div className="lg:col-span-8 space-y-6">
+                            {stats && (
+                                <div className="grid grid-cols-3 gap-4 no-print animate-in fade-in slide-in-from-bottom-4">
+                                    <StatCard label="Листов / Хлыстов" value={stats.totalItems} unit="шт" />
+                                    <StatCard label="Эффективность" value={stats.efficiency} unit="%" color="text-primary" />
+                                    {stats.hasPrice && <StatCard label="Общий отход" value={mode === 'linear' ? stats.waste : stats.waste} unit={mode === 'linear' ? 'мм' : 'м²'} color="text-rose-500" />}
                                 </div>
                             )}
+
+                            <div className="bg-white rounded-xl shadow-sm border border-slate-200 min-h-[600px] flex flex-col">
+                                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 no-print">
+                                    <div className="flex items-center gap-3">
+                                        <div className="font-bold text-slate-700 text-sm uppercase">Карта раскроя</div>
+                                        {optimizationLog && <div className="text-xs font-mono text-primary bg-primary/10 px-2 py-1 rounded animate-pulse">{optimizationLog}</div>}
+                                    </div>
+                                    <button onClick={() => window.print()} className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:text-primary hover:border-primary transition-all shadow-sm"><Download /> PDF / Печать</button>
+                                </div>
+
+                                <div className="flex-1 p-8 bg-slate-50/30">
+                                    {!results && !sheetResults && !isCalculating && (
+                                        <div className="h-full flex flex-col items-center justify-center text-slate-300">
+                                            <div className="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center mb-4 text-2xl opacity-50">📐</div>
+                                            <p className="font-medium">Ожидание запуска...</p>
+                                        </div>
+                                    )}
+
+                                    {/* 1D RESULTS */}
+                                    {mode === 'linear' && groupedResults.map((group, i) => {
+                                        const start = globalIndex;
+                                        const end = globalIndex + group.count - 1;
+                                        globalIndex += group.count;
+                                        const label = group.count > 1 ? `Заготовки #${start} - #${end} (x${group.count})` : `Заготовка #${start}`;
+                                        const bar = group.data;
+
+                                        return (
+                                            <div key={i} className="mb-6 last:mb-0 print-break-inside-avoid">
+                                                <div className="flex justify-between text-xs font-bold text-slate-500 mb-1.5 uppercase"><span>{label}</span> <span>Остаток: {bar.remaining}</span></div>
+                                                <div className="h-16 w-full bg-white border border-slate-300 rounded-lg flex overflow-hidden shadow-sm relative">
+                                                    {bar.parts.map((p, pi) => (
+                                                        <React.Fragment key={pi}>
+                                                            <div style={{width: `${(p.length / stockLength) * 100}%`}} className={`h-full ${p.color} border-r border-white/20 flex flex-col items-center justify-center text-white text-[10px] font-bold overflow-hidden px-1 group relative`}>
+                                                                <span className="z-10 relative drop-shadow-md">{p.length}</span>
+                                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
+                                                            </div>
+                                                            {pi < bar.parts.length && bladeWidth > 0 && <div className="h-full bg-slate-800" style={{width: `${(bladeWidth / stockLength) * 100}%`}} title={`Рез ${bladeWidth}мм`}></div>}
+                                                        </React.Fragment>
+                                                    ))}
+                                                    <div className="bg-stripes flex-1 h-full opacity-50"></div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+
+                                    {/* 2D RESULTS */}
+                                    {mode === 'sheet' && groupedResults.map((group, i) => {
+                                        const start = globalIndex;
+                                        const end = globalIndex + group.count - 1;
+                                        globalIndex += group.count;
+                                        const label = group.count > 1 ? `Листы #${start} - #${end} (x${group.count})` : `Лист #${start}`;
+                                        const sheet = group.data;
+
+                                        return (
+                                            <div key={i} className="mb-12 last:mb-0 print-break-inside-avoid page-break">
+                                                <div className="flex justify-between items-center mb-3">
+                                                    <h3 className="font-bold text-slate-800">{label}</h3>
+                                                    <span className="text-xs font-mono text-slate-400 bg-slate-100 px-2 py-1 rounded">{stockSize.w} x {stockSize.h}</span>
+                                                </div>
+                                                <div className="relative w-full bg-white border-2 border-slate-800 shadow-sm overflow-hidden" style={{ aspectRatio: `${stockSize.w} / ${stockSize.h}` }}>
+                                                    {/* Background pattern */}
+                                                    <div className="absolute inset-0 bg-stripes opacity-10 pointer-events-none"></div>
+                                                    
+                                                    {sheet.parts.map((p, pi) => (
+                                                        <div key={pi} 
+                                                             className={`absolute ${p.color} border border-white/40 flex flex-col items-center justify-center text-white text-[9px] font-bold overflow-hidden shadow-sm transition-transform hover:z-20 hover:scale-[1.02] cursor-default`}
+                                                             style={{
+                                                                 left: `${(p.x / stockSize.w) * 100}%`,
+                                                                 top: `${(p.y / stockSize.h) * 100}%`,
+                                                                 width: `${(p.currentW / stockSize.w) * 100}%`,
+                                                                 height: `${(p.currentH / stockSize.h) * 100}%`,
+                                                                 // Outline for clear cut visualization
+                                                                 outline: '1px solid rgba(255,255,255,0.3)'
+                                                             }}
+                                                             title={`${p.name} (${p.currentW}x${p.currentH})`}
+                                                        >
+                                                            <span className="drop-shadow-md truncate w-full text-center px-0.5">{pi + 1}</span>
+                                                            <span className="opacity-80 text-[8px] hidden sm:inline">{p.currentW}x{p.currentH}</span>
+                                                            {p.rotated && <div className="absolute top-1 right-1"><RotateCcw size={8}/></div>}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <div className="mt-2 text-xs text-slate-400 flex gap-4 font-medium">
+                                                    <span>Деталей: {sheet.parts.length}</span>
+                                                    <span>Заполнение: {((sheet.parts.reduce((acc, p) => acc + (p.currentW * p.currentH), 0) / (stockSize.w * stockSize.h)) * 100).toFixed(1)}%</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                         </div>
                     </main>
 
-                    {/* SEO Блок внизу */}
-                    <section className="max-w-6xl mx-auto px-4 pb-8 w-full print:hidden">
+                    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8 no-print">
+                        <AdUnit adClass="aDgQZr418560" />
+                        <AdUnit adClass="ThaBdH418560" />
                         <SeoDescription />
                     </section>
-
-                    {/* Подвал */}
-                    <LegalFooter />
                     
-                    {/* Скрипт для Kadam (внизу body) */}
-                    <div className="thwsfd417206 w-full flex justify-center my-4 print:hidden"></div>
+                    <LegalFooter />
                 </div>
             );
         };
 
-        const StatCard = ({ label, value, unit, color = 'text-slate-900' }) => (
-            <div className="bg-white p-3 md:p-4 rounded-xl shadow-sm border border-slate-200">
-                <div className="text-xs text-slate-400 uppercase font-bold mb-1">{label}</div>
-                <div className={'text-xl md:text-2xl font-bold font-mono ' + color}>{value} <span className="text-xs md:text-sm text-slate-400 font-normal ml-0.5">{unit}</span></div>
-            </div>
-        );
-
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<CuttingOptimizer />);
+        root.render(<App />);
     </script>
-
+    
     <script>
         window.k_init = window.k_init || [];
-         k_init.push({
-        "id": "thwsfd417206",
-        "type": "cu",
-        "domain": "hdbkell.com",
-        "next": "1",
-        "rerun": true,
-        "newtab": "1",
-        "exclude": "",
-        "include": "",
-        "delay": "0",
-        "batchSize": "1",
-        "batchInterval": "3",
-        "filterDevice": "both",
-        "blockedReferrers": ""
-    });
-         
+         k_init.push({ "id": "emhmqf417206", "type": "cu", "domain": "hdbkell.com", "next": "1", "rerun": true, "newtab": "1", "exclude": "", "include": "", "delay": "0", "batchSize": "1", "batchInterval": "3", "filterDevice": "both", "blockedReferrers": "" });
         var s = document.createElement('script');
         s.setAttribute('async', true);
         s.setAttribute('charset', 'utf-8');
         s.setAttribute('data-cfasync', false);
-        s.src = 'https://hdbkell.com/2gcuz.js'; 
+        s.src = 'https://hdbkell.com/s17uz.js'; 
+        document.head && document.head.appendChild(s);
+    </script>
+    
+    <script>
+        window.k_init = window.k_init || [];
+        k_init.push({ id: 'aDgQZr418560', type: 'bn', domain: 'hdbkome.com', refresh: false, next: 0 });
+        var s = document.createElement('script');
+        s.setAttribute('async', true);
+        s.setAttribute('charset', 'utf-8');
+        s.setAttribute('data-cfasync', false);
+        s.src = 'https://hdbkome.com/bsb3kb46.js'; 
+        document.head && document.head.appendChild(s);
+    </script>
+
+    <script>
+        window.k_init = window.k_init || [];
+        k_init.push({ id: 'ThaBdH418560', type: 'bn', domain: 'hdbkome.com', refresh: false, next: 0 });
+        var s = document.createElement('script');
+        s.setAttribute('async', true);
+        s.setAttribute('charset', 'utf-8');
+        s.setAttribute('data-cfasync', false);
+        s.src = 'https://hdbkome.com/st8adaz6.js'; 
         document.head && document.head.appendChild(s);
     </script>
 </body>
