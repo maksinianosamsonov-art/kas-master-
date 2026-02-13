@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
-    <title>Кас Мастеръ - Калькулятор раскроя</title>
+    <title>Кас Мастеръ - Умный Раскрой</title>
     <meta name="description" content="Оптимизация раскроя с группировкой листов и защитой от ошибок.">
     
     <meta name="yandex-verification" content="f820a1aef559942f" />
@@ -108,13 +108,9 @@
                     self.postMessage(waste1 <= waste2 ? res1 : res2);
                 } else {
                     const stock = { w: Number(stockSize.w), h: Number(stockSize.h) };
-                    const result = runSheetTournament(cleanParts, stock, safeBlade, allowRotation);
-                    
-                    if (result && result.error) {
-                        self.postMessage({ error: result.error });
-                    } else {
-                        self.postMessage(result);
-                    }
+                    const result = runDeepTournament(cleanParts, stock, safeBlade, allowRotation);
+                    if (result && result.error) self.postMessage({ error: result.error });
+                    else self.postMessage(result);
                 }
             } catch (err) {
                 self.postMessage({ error: err.message || "Ошибка вычислений" });
@@ -137,7 +133,6 @@
             let allPieces = flattenParts(parts);
             allPieces.sort((a, b) => b.length - a.length);
             if (allPieces.some(p => p.length > stockLength)) return { error: "Деталь длиннее заготовки!" };
-
             let bars = [];
             for (let piece of allPieces) {
                 let placed = false;
@@ -159,7 +154,6 @@
             let allPieces = flattenParts(parts);
             allPieces.sort((a, b) => b.length - a.length); 
             if (allPieces.some(p => p.length > stockLength)) return { error: "Деталь длиннее заготовки!" };
-
             let bars = [];
             for (let piece of allPieces) {
                 let bestBarIdx = -1;
@@ -200,16 +194,27 @@
             return rects.some(p => Math.min(p.w, p.h) > Math.min(stock.w, stock.h) && Math.max(p.w, p.h) > Math.max(stock.w, stock.h));
         }
 
-        function runSheetTournament(parts, stockSize, blade, allowRotation) {
+        // DEEP TOURNAMENT (UPDATED with Force Split Axes)
+        function runDeepTournament(parts, stockSize, blade, allowRotation) {
             let allRects = flattenRects(parts);
-            if (isTooBig(allRects, stockSize)) return { error: "Одна из деталей больше размера листа!" };
+            if (isTooBig(allRects, stockSize)) return { error: "Деталь больше листа!" };
 
             const strategies = [
-                { name: 'MaxRects_BSSF_Area', sort: 'area', algo: 'maxrects', metric: 'bssf' },
-                { name: 'MaxRects_BSSF_Side', sort: 'side', algo: 'maxrects', metric: 'bssf' },
-                { name: 'MaxRects_BAF_Area', sort: 'area', algo: 'maxrects', metric: 'baf' },
-                { name: 'Guillotine_Area', sort: 'area', algo: 'guillotine' },
-                { name: 'Shelf_Height', sort: 'height', algo: 'shelf' }
+                // Forced Horizontal Split (Good for rows)
+                { algo: 'guillotine', split: 'horz', sort: 'area' }, 
+                { algo: 'guillotine', split: 'horz', sort: 'side' },
+
+                // Forced Vertical Split (Good for columns)
+                { algo: 'guillotine', split: 'vert', sort: 'area' },
+                { algo: 'guillotine', split: 'vert', sort: 'side' },
+
+                // MaxRects Heuristics
+                { algo: 'maxrects', metric: 'baf', split: 'short', sort: 'area' }, // Best Area
+                { algo: 'maxrects', metric: 'bssf', split: 'short', sort: 'width' }, // Best Short Side
+                { algo: 'maxrects', metric: 'bl', split: 'short', sort: 'width' },   // Bottom Left
+
+                // Shelf (Fallback)
+                { algo: 'shelf', sort: 'height' }
             ];
 
             let bestResult = null;
@@ -217,15 +222,18 @@
 
             for (let strat of strategies) {
                 let sortedRects = [...allRects];
+                
                 if (strat.sort === 'area') sortedRects.sort((a,b) => (b.w * b.h) - (a.w * a.h));
                 else if (strat.sort === 'side') sortedRects.sort((a,b) => Math.max(b.w, b.h) - Math.max(a.w, a.h));
+                else if (strat.sort === 'width') sortedRects.sort((a,b) => b.w - a.w || b.h - a.h);
                 else if (strat.sort === 'height') sortedRects.sort((a,b) => b.h - a.h);
 
                 let sheets = [];
                 if (strat.algo === 'maxrects') {
-                    sheets = packMaxRects(sortedRects, stockSize, blade, allowRotation, strat.metric === 'baf');
+                    sheets = packMaxRects(sortedRects, stockSize, blade, allowRotation, strat.metric, strat.split);
                 } else if (strat.algo === 'guillotine') {
-                    sheets = packGuillotine(sortedRects, stockSize, blade, allowRotation);
+                    // For Guillotine, pass the split strategy (horz/vert)
+                    sheets = packMaxRects(sortedRects, stockSize, blade, allowRotation, 'baf', strat.split); 
                 } else {
                     sheets = packShelf(sortedRects, stockSize, blade, allowRotation);
                 }
@@ -237,13 +245,13 @@
                     sheets.forEach(s => s.parts.forEach(p => pureUsed += p.width * p.height));
                     
                     let waste = totalArea - pureUsed;
-                    // Стоимость: Листы * 1млрд + Отход. Приоритет - кол-во листов.
-                    let cost = totalSheets * 1000000000 + waste;
+                    // Primary goal: Minimize Sheets. Secondary: Minimize Waste.
+                    let cost = (totalSheets * 1000000000) + waste;
 
                     if (cost < minCost) {
                         minCost = cost;
                         bestResult = sheets;
-                        bestResult.algoName = strat.name;
+                        bestResult.algoName = `${strat.algo}_${strat.split || ''}_${strat.sort}`;
                     }
                 }
             }
@@ -252,145 +260,139 @@
             return bestResult;
         }
 
-        // --- 2D ALGORITHMS ---
-
-        // Shelf
+        // --- PACKERS ---
         function packShelf(rects, stock, blade, rotate) {
             let sheets = [];
             let remaining = JSON.parse(JSON.stringify(rects));
-            
             while(remaining.length > 0) {
                 let currentSheet = { parts: [] };
                 let x = 0, y = 0, rowH = 0;
                 let nextRemaining = [];
                 let placedCount = 0;
-
                 for (let r of remaining) {
                     let w = r.w, h = r.h;
                     let rotated = false;
-
                     if (rotate && h > w && h > rowH && w <= rowH) { let t=w;w=h;h=t; rotated=true; }
                     else if (rotate && h > stock.h && w <= stock.h) { let t=w;w=h;h=t; rotated=true; }
-
-                    if (x + w > stock.w) {
-                        x = 0;
-                        y += rowH + (rowH > 0 ? blade : 0);
-                        rowH = 0;
-                    }
-                    if (y + h > stock.h) {
-                        // Не влезло на этот лист
-                        nextRemaining.push(r);
-                        continue; 
-                    }
-
+                    if (x + w > stock.w) { x = 0; y += rowH + (rowH > 0 ? blade : 0); rowH = 0; }
+                    if (y + h > stock.h) { nextRemaining.push(r); continue; }
                     currentSheet.parts.push({ ...r.data, x, y, currentW: w, currentH: h, rotated });
                     x += w + blade;
                     rowH = Math.max(rowH, h);
                     placedCount++;
                 }
-
-                if (placedCount === 0) return { error: "Бесконечный цикл: деталь не помещается на пустой лист." };
-                
+                if (placedCount === 0) return { error: "Деталь не помещается." };
                 sheets.push(currentSheet);
                 remaining = nextRemaining;
             }
             return sheets;
         }
 
-        // MaxRects
-        function packMaxRects(rects, stock, blade, rotate, useBAF) {
+        function packMaxRects(rects, stock, blade, rotate, metric, splitStrategy) {
             let sheets = [];
             let remaining = JSON.parse(JSON.stringify(rects));
-
             while(remaining.length > 0) {
                 let sheet = { w: stock.w, h: stock.h, parts: [], free: [{x:0, y:0, w:stock.w, h:stock.h}] };
                 let nextRemaining = [];
                 let placedCount = 0;
-
                 for (let r of remaining) {
                     let bestNode = null;
-                    let bestScore = Infinity;
+                    let bestScore1 = Infinity, bestScore2 = Infinity;
                     let bestIdx = -1;
-
                     for (let i = 0; i < sheet.free.length; i++) {
                         const free = sheet.free[i];
-                        // Normal
-                        if (r.w <= free.w && r.h <= free.h) {
-                            if (!checkCollision(sheet.parts, free.x, free.y, r.w, r.h)) {
-                                let score;
-                                if (useBAF) score = (free.w * free.h) - (r.w * r.h); 
-                                else score = Math.min(free.w - r.w, free.h - r.h); 
-                                
-                                if (score < bestScore) {
-                                    bestScore = score;
-                                    bestNode = { x: free.x, y: free.y, w: r.w, h: r.h, rotated: false };
-                                    bestIdx = i;
-                                }
-                            }
-                        }
-                        // Rotated
-                        if (rotate && r.h <= free.w && r.w <= free.h) {
-                            if (!checkCollision(sheet.parts, free.x, free.y, r.h, r.w)) {
-                                let score;
-                                if (useBAF) score = (free.w * free.h) - (r.h * r.w);
-                                else score = Math.min(free.w - r.h, free.h - r.w);
-
-                                if (score < bestScore) {
-                                    bestScore = score;
-                                    bestNode = { x: free.x, y: free.y, w: r.h, h: r.w, rotated: true };
-                                    bestIdx = i;
+                        const tries = [{w: r.w, h: r.h, rot: false}];
+                        if (rotate && r.w !== r.h) tries.push({w: r.h, h: r.w, rot: true});
+                        for (let t of tries) {
+                            if (t.w <= free.w && t.h <= free.h) {
+                                if (!checkCollision(sheet.parts, free.x, free.y, t.w, t.h)) {
+                                    let score1, score2;
+                                    if (metric === 'baf') {
+                                        score1 = (free.w * free.h) - (t.w * t.h);
+                                        score2 = Math.min(free.w - t.w, free.h - t.h);
+                                    } else if (metric === 'bl') {
+                                        score1 = free.y + t.h;
+                                        score2 = free.x + t.w;
+                                    } else { // bssf
+                                        let remX = free.w - t.w;
+                                        let remY = free.h - t.h;
+                                        score1 = Math.min(remX, remY);
+                                        score2 = Math.max(remX, remY);
+                                    }
+                                    if (score1 < bestScore1 || (score1 === bestScore1 && score2 < bestScore2)) {
+                                        bestScore1 = score1;
+                                        bestScore2 = score2;
+                                        bestNode = { x: free.x, y: free.y, w: t.w, h: t.h, rotated: t.rot };
+                                        bestIdx = i;
+                                    }
                                 }
                             }
                         }
                     }
-
                     if (bestNode) {
                         sheet.parts.push({ ...r.data, x: bestNode.x, y: bestNode.y, currentW: bestNode.w, currentH: bestNode.h, rotated: bestNode.rotated });
-                        performSplit(sheet.free, bestIdx, bestNode.w, bestNode.h, blade);
+                        performSplit(sheet.free, bestIdx, bestNode.w, bestNode.h, blade, splitStrategy);
                         placedCount++;
                     } else {
                         nextRemaining.push(r);
                     }
                 }
-                
-                if (placedCount === 0) return { error: "Невозможно разместить деталь (возможно, слишком велика)." };
-
+                if (placedCount === 0) return { error: "Деталь не влезает в пустой лист." };
                 remaining = nextRemaining;
                 sheets.push(sheet);
             }
             return sheets;
         }
 
-        function packGuillotine(rects, stock, blade, rotate) {
-            return packMaxRects(rects, stock, blade, rotate, true); 
-        }
-
-        // HELPERS
         function checkCollision(placed, x, y, w, h) {
             const l1=x, r1=x+w, t1=y, b1=y+h;
+            const eps = 0.01;
             for(let p of placed) {
                 const l2=p.x, r2=p.x+p.currentW, t2=p.y, b2=p.y+p.currentH;
-                if (l1 < r2-0.01 && r1 > l2+0.01 && t1 < b2-0.01 && b1 > t2+0.01) return true;
+                if (l1 < r2-eps && r1 > l2+eps && t1 < b2-eps && b1 > t2+eps) return true;
             }
             return false;
         }
 
-        function performSplit(freeRects, usedIdx, usedW, usedH, blade) {
+        function performSplit(freeRects, usedIdx, usedW, usedH, blade, strategy) {
             const free = freeRects[usedIdx];
             freeRects.splice(usedIdx, 1);
-
             const w = usedW + blade;
             const h = usedH + blade;
             const wRem = free.w - w;
             const hRem = free.h - h;
+            
+            let splitHorizontal = false;
+            
+            // Forced Strategies
+            if (strategy === 'horz') {
+                splitHorizontal = true; // Cut the Horizontal axis (create Top/Bottom strips)
+            } else if (strategy === 'vert') {
+                splitHorizontal = false; // Cut the Vertical axis (create Left/Right strips)
+            } else if (strategy === 'long') {
+                // Cut perpendicular to long axis (Min cut length, Max Area Remainder)
+                // If w > h, cut Vertical. If h > w, cut Horizontal.
+                splitHorizontal = free.w < free.h; 
+            } else {
+                // Short Axis Split (Standard SAS)
+                // Split perpendicular to short axis
+                splitHorizontal = free.w > free.h; // If w > h, cut Horizontal? No.
+                // Standard SAS: Minimize cut length. 
+                // w=1000, h=10. Vertical Cut length = 10. Horizontal Cut length = 1000.
+                // We want Vertical Cut.
+                // So if w > h, we want Vertical (splitHorizontal = false).
+                splitHorizontal = free.w < free.h;
+            }
 
-            const splitHorizontal = free.w < free.h; 
-            const MIN = 1;
-
+            const MIN = 1; 
             if (splitHorizontal) {
+                // Horizontal Split (Line goes Left-Right).
+                // Creates Bottom (Full Width) and Right (Small)
                 if (hRem >= MIN) freeRects.push({ x: free.x, y: free.y + h, w: free.w, h: hRem });
                 if (wRem >= MIN) freeRects.push({ x: free.x + w, y: free.y, w: wRem, h: usedH });
             } else {
+                // Vertical Split (Line goes Top-Down)
+                // Creates Right (Full Height) and Bottom (Small)
                 if (wRem >= MIN) freeRects.push({ x: free.x + w, y: free.y, w: wRem, h: free.h });
                 if (hRem >= MIN) freeRects.push({ x: free.x, y: free.y + h, w: usedW, h: hRem });
             }
@@ -418,11 +420,11 @@
                 <div className="grid md:grid-cols-2 gap-8 text-sm text-slate-600 leading-relaxed">
                     <div className="prose">
                         <h4 className="font-bold text-slate-700 mb-2">Турнир Алгоритмов</h4>
-                        <p>Система автоматически тестирует 5 стратегий укладки (MaxRects, Guillotine, Shelf) и выбирает ту, которая дает минимальный отход.</p>
+                        <p>Система автоматически тестирует стратегии Guillotine (LAS/SAS) и MaxRects для поиска наиболее плотной упаковки.</p>
                     </div>
                     <div className="prose">
                         <h4 className="font-bold text-slate-700 mb-2">Группировка</h4>
-                        <p>Одинаковые карты раскроя автоматически объединяются в группы, что упрощает чтение чертежей и работу в цеху.</p>
+                        <p>Одинаковые карты раскроя автоматически объединяются.</p>
                     </div>
                 </div>
             </div>
@@ -454,21 +456,18 @@
             </footer>
         );
 
-        // Helper to allow empty string input
         const handleNumInput = (val) => val === '' ? '' : Number(val);
 
         const App = () => {
             const [mode, setMode] = useState('linear'); 
             const [stockLength, setStockLength] = useState(6000);
             const [stockSize, setStockSize] = useState({ w: 2500, h: 1250 });
-            const [bladeWidth, setBladeWidth] = useState(3);
+            const [bladeWidth, setBladeWidth] = useState(0);
             const [allowRotation, setAllowRotation] = useState(true);
             const [materialPrice, setMaterialPrice] = useState(0); 
             
-            // SEPARATE STATE FOR PARTS
             const [linearParts, setLinearParts] = useState([]);
             const [sheetParts, setSheetParts] = useState([]);
-
             const [results, setResults] = useState(null);
             const [sheetResults, setSheetResults] = useState(null);
             const [isCalculating, setIsCalculating] = useState(false);
@@ -479,11 +478,9 @@
             const workerRef = useRef(null);
             const colors = ['bg-blue-500', 'bg-indigo-500', 'bg-violet-500', 'bg-purple-500', 'bg-fuchsia-500', 'bg-pink-500', 'bg-rose-500'];
 
-            // DERIVED STATE
             const parts = mode === 'linear' ? linearParts : sheetParts;
-            
             const setParts = (newParts) => {
-                if (mode === 'linear') setLinearParts(newParts);
+                if(mode === 'linear') setLinearParts(newParts);
                 else setSheetParts(newParts);
             };
 
@@ -494,10 +491,7 @@
                 workerRef.current.onmessage = (e) => {
                     setIsCalculating(false);
                     const data = e.data;
-                    if (data.error) {
-                        alert(data.error);
-                        return;
-                    }
+                    if (data.error) { alert(data.error); return; }
                     if (Array.isArray(data)) {
                         if (data.length > 0 && data[0].hasOwnProperty('remaining')) {
                              setResults(data);
@@ -521,83 +515,44 @@
                 workerRef.current.postMessage({
                     mode, 
                     parts: JSON.parse(JSON.stringify(parts)),
-                    stockLength, 
-                    stockSize, 
-                    bladeWidth, 
-                    allowRotation
+                    stockLength, stockSize, bladeWidth, allowRotation
                 });
             };
 
             const handleImport = () => {
                 const lines = importText.trim().split(/\r?\n/);
-                const newLinParts = [];
-                const newSheetParts = [];
+                const newLin = [], newSheet = [];
                 const baseId = Date.now();
-                
                 lines.forEach((line, index) => {
                     if (!line.trim()) return;
                     const nums = line.trim().replace(/,/g, '.').split(/[\t\s,;]+/).map(Number).filter(n => !isNaN(n));
-                    if (mode === 'linear' && nums.length >= 1) {
-                        newLinParts.push({ id: baseId + index, name: `Part ${index+1}`, length: nums[0], width: 0, height: 0, quantity: nums[1] || 1, color: colors[index % colors.length] });
-                    } else if (mode === 'sheet' && nums.length >= 2) {
-                        newSheetParts.push({ id: baseId + index, name: `Part ${index+1}`, length: 0, width: nums[0], height: nums[1], quantity: nums[2] || 1, color: colors[index % colors.length] });
-                    }
+                    if (mode === 'linear' && nums.length >= 1) newLin.push({ id: baseId + index, name: `Part ${index+1}`, length: nums[0], width: 0, height: 0, quantity: nums[1] || 1, color: colors[index % colors.length] });
+                    else if (mode === 'sheet' && nums.length >= 2) newSheet.push({ id: baseId + index, name: `Part ${index+1}`, length: 0, width: nums[0], height: nums[1], quantity: nums[2] || 1, color: colors[index % colors.length] });
                 });
-
-                if (mode === 'linear' && newLinParts.length > 0) {
-                    setLinearParts([...linearParts, ...newLinParts]);
-                    setShowImport(false);
-                    setImportText('');
-                } else if (mode === 'sheet' && newSheetParts.length > 0) {
-                    setSheetParts([...sheetParts, ...newSheetParts]);
-                    setShowImport(false);
-                    setImportText('');
-                }
+                if (mode === 'linear' && newLin.length > 0) { setLinearParts([...linearParts, ...newLin]); setShowImport(false); setImportText(''); }
+                else if (mode === 'sheet' && newSheet.length > 0) { setSheetParts([...sheetParts, ...newSheet]); setShowImport(false); setImportText(''); }
             };
 
-            const addPart = () => {
-                const newPart = { 
-                    id: Date.now(), 
-                    name: `Деталь ${parts.length + 1}`, 
-                    length: 0, 
-                    width: 0, 
-                    height: 0, 
-                    quantity: 1, 
-                    color: colors[parts.length % colors.length] 
-                };
-                setParts([...parts, newPart]);
-            };
-
+            const addPart = () => setParts([...parts, { id: Date.now(), name: `Деталь ${parts.length + 1}`, length: 0, width: 0, height: 0, quantity: 1, color: colors[parts.length % colors.length] }]);
             const updatePart = (id, f, v) => setParts(parts.map(p => p.id === id ? { ...p, [f]: v } : p));
             const removePart = (id) => setParts(parts.filter(p => p.id !== id));
 
-            // GROUPING LOGIC
             const groupedResults = useMemo(() => {
                 const rawResults = (mode === 'linear' ? results : sheetResults);
                 if (!rawResults || !Array.isArray(rawResults)) return [];
-                
                 const groups = [];
                 const map = new Map();
-
                 rawResults.forEach((item) => {
                     let sig;
                     if (mode === 'linear') {
                         const pSig = item.parts.map(p => p.length).sort((a, b) => b - a).join(',');
                         sig = `${item.remaining}|${pSig}`;
                     } else {
-                        const pSig = item.parts
-                            .map(p => `${Math.round(p.x)}:${Math.round(p.y)}:${Math.round(p.currentW)}:${Math.round(p.currentH)}:${p.rotated}`)
-                            .sort()
-                            .join('|');
+                        const pSig = item.parts.map(p => `${Math.round(p.x)}:${Math.round(p.y)}:${Math.round(p.currentW)}:${Math.round(p.currentH)}:${p.rotated}`).sort().join('|');
                         sig = `${item.parts.length}|${pSig}`;
                     }
-
-                    if (map.has(sig)) {
-                        groups[map.get(sig)].count++;
-                    } else {
-                        map.set(sig, groups.length);
-                        groups.push({ data: item, count: 1 });
-                    }
+                    if (map.has(sig)) groups[map.get(sig)].count++;
+                    else { map.set(sig, groups.length); groups.push({ data: item, count: 1 }); }
                 });
                 return groups;
             }, [results, sheetResults, mode]);
@@ -619,15 +574,9 @@
 
             return (
                 <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-12">
-                    {/* NAV */}
                     <nav className="bg-white border-b border-slate-200 sticky top-0 z-30 print:hidden">
                         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <div className="bg-primary/10 p-2 rounded-lg text-primary text-2xl">📐</div>
-                                <div>
-                                    <h1 className="text-xl font-bold tracking-tight text-slate-900">Кас Мастеръ</h1>
-                                </div>
-                            </div>
+                            <div className="flex items-center gap-2"><div className="bg-primary/10 p-2 rounded-lg text-primary text-2xl">📐</div><div><h1 className="text-xl font-bold tracking-tight text-slate-900">Кас Мастеръ</h1></div></div>
                             <div className="flex bg-slate-100 p-1 rounded-lg">
                                 <button onClick={() => {setMode('linear'); setResults(null);}} className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${mode === 'linear' ? 'bg-white shadow text-primary' : 'text-slate-500 hover:text-slate-700'}`}>Линейный</button>
                                 <button onClick={() => {setMode('sheet'); setSheetResults(null);}} className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${mode === 'sheet' ? 'bg-white shadow text-primary' : 'text-slate-500 hover:text-slate-700'}`}>Листовой</button>
@@ -636,45 +585,25 @@
                     </nav>
 
                     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
-                        {/* LEFT SIDEBAR: INPUTS */}
                         <div className="lg:col-span-4 space-y-6 no-print">
-                            {/* CONFIG */}
                             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                                <div className="px-5 py-4 bg-slate-50 border-b border-slate-100 flex items-center gap-2 font-bold text-slate-700 text-sm uppercase tracking-wide">
-                                    <Settings /> Параметры материала
-                                </div>
+                                <div className="px-5 py-4 bg-slate-50 border-b border-slate-100 flex items-center gap-2 font-bold text-slate-700 text-sm uppercase tracking-wide"><Settings /> Параметры материала</div>
                                 <div className="p-5 space-y-5">
                                     {mode === 'linear' ? (
-                                        <div>
-                                            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Длина хлыста (мм)</label>
-                                            <input type="number" value={stockLength} onChange={(e) => setStockLength(handleNumInput(e.target.value))} className="block w-full rounded-lg border-slate-200 bg-slate-50 p-2.5 text-sm font-mono font-bold focus:border-primary focus:ring-primary/20 transition-all"/>
-                                        </div>
+                                        <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Длина хлыста (мм)</label><input type="number" value={stockLength} onChange={(e) => setStockLength(handleNumInput(e.target.value))} className="block w-full rounded-lg border-slate-200 bg-slate-50 p-2.5 text-sm font-mono font-bold focus:border-primary focus:ring-primary/20 transition-all"/></div>
                                     ) : (
                                         <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Ширина (мм)</label>
-                                                <input type="number" value={stockSize.w} onChange={(e) => setStockSize(s => ({...s, w: handleNumInput(e.target.value)}))} className="block w-full rounded-lg border-slate-200 bg-slate-50 p-2.5 text-sm font-mono font-bold focus:border-primary focus:ring-primary/20 transition-all"/>
-                                            </div>
-                                            <div>
-                                                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Высота (мм)</label>
-                                                <input type="number" value={stockSize.h} onChange={(e) => setStockSize(s => ({...s, h: handleNumInput(e.target.value)}))} className="block w-full rounded-lg border-slate-200 bg-slate-50 p-2.5 text-sm font-mono font-bold focus:border-primary focus:ring-primary/20 transition-all"/>
-                                            </div>
+                                            <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Ширина (мм)</label><input type="number" value={stockSize.w} onChange={(e) => setStockSize(s => ({...s, w: handleNumInput(e.target.value)}))} className="block w-full rounded-lg border-slate-200 bg-slate-50 p-2.5 text-sm font-mono font-bold focus:border-primary focus:ring-primary/20 transition-all"/></div>
+                                            <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Высота (мм)</label><input type="number" value={stockSize.h} onChange={(e) => setStockSize(s => ({...s, h: handleNumInput(e.target.value)}))} className="block w-full rounded-lg border-slate-200 bg-slate-50 p-2.5 text-sm font-mono font-bold focus:border-primary focus:ring-primary/20 transition-all"/></div>
                                         </div>
                                     )}
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Толщина реза (мм)</label>
-                                            <input type="number" value={bladeWidth} onChange={(e) => setBladeWidth(handleNumInput(e.target.value))} className="block w-full rounded-lg border-slate-200 bg-slate-50 p-2.5 text-sm font-mono font-bold focus:border-primary focus:ring-primary/20 transition-all"/>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Цена за ед.</label>
-                                            <input type="number" value={materialPrice} onChange={(e) => setMaterialPrice(handleNumInput(e.target.value))} className="block w-full rounded-lg border-slate-200 bg-slate-50 p-2.5 text-sm font-mono font-bold focus:border-primary focus:ring-primary/20 transition-all"/>
-                                        </div>
+                                        <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Толщина реза (мм)</label><input type="number" value={bladeWidth} onChange={(e) => setBladeWidth(handleNumInput(e.target.value))} className="block w-full rounded-lg border-slate-200 bg-slate-50 p-2.5 text-sm font-mono font-bold focus:border-primary focus:ring-primary/20 transition-all"/></div>
+                                        <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Цена за ед.</label><input type="number" value={materialPrice} onChange={(e) => setMaterialPrice(handleNumInput(e.target.value))} className="block w-full rounded-lg border-slate-200 bg-slate-50 p-2.5 text-sm font-mono font-bold focus:border-primary focus:ring-primary/20 transition-all"/></div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* PARTS LIST */}
                             <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col h-[500px]">
                                 <div className="px-5 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
                                     <div className="font-bold text-slate-700 text-sm uppercase tracking-wide flex items-center gap-2">Детали <span className="bg-slate-200 text-slate-600 rounded-full px-2 py-0.5 text-xs">{parts.length}</span></div>
@@ -683,7 +612,6 @@
                                         <button onClick={() => { if(confirm('Очистить?')) {setParts([]); setResults(null); setSheetResults(null);} }} className="p-1.5 text-slate-400 hover:text-danger hover:bg-slate-100 rounded-md transition-colors"><Trash /></button>
                                     </div>
                                 </div>
-                                
                                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
                                     {showImport && (
                                         <div className="mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200 animate-in fade-in slide-in-from-top-2">
@@ -691,13 +619,7 @@
                                             <button onClick={handleImport} className="w-full py-1.5 bg-slate-800 text-white text-xs font-bold rounded hover:bg-slate-700">Добавить</button>
                                         </div>
                                     )}
-
-                                    {mode === 'sheet' && (
-                                        <button onClick={() => setAllowRotation(!allowRotation)} className={`w-full py-2 mb-2 rounded-lg text-xs font-bold border border-dashed flex justify-center items-center gap-2 transition-all ${allowRotation ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-slate-300 text-slate-400'}`}>
-                                            Вращение {allowRotation ? 'ВКЛ' : 'ВЫКЛ'}
-                                        </button>
-                                    )}
-
+                                    {mode === 'sheet' && <button onClick={() => setAllowRotation(!allowRotation)} className={`w-full py-2 mb-2 rounded-lg text-xs font-bold border border-dashed flex justify-center items-center gap-2 transition-all ${allowRotation ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-slate-300 text-slate-400'}`}>Вращение {allowRotation ? 'ВКЛ' : 'ВЫКЛ'}</button>}
                                     {parts.map(p => (
                                         <div key={p.id} className="group relative flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl hover:border-primary/50 hover:shadow-sm transition-all">
                                             <div className={`w-1.5 self-stretch rounded-full ${p.color}`}></div>
@@ -707,11 +629,7 @@
                                                     {mode === 'linear' ? (
                                                         <input type="number" value={p.length} onChange={(e) => updatePart(p.id, 'length', handleNumInput(e.target.value))} className="w-16 bg-slate-50 border-none rounded px-1.5 py-0.5 text-xs font-mono font-bold text-slate-600 text-center focus:ring-1 focus:ring-primary"/>
                                                     ) : (
-                                                        <>
-                                                            <input type="number" value={p.width} onChange={(e) => updatePart(p.id, 'width', handleNumInput(e.target.value))} className="w-14 bg-slate-50 border-none rounded px-1.5 py-0.5 text-xs font-mono font-bold text-slate-600 text-center focus:ring-1 focus:ring-primary"/>
-                                                            <span className="text-slate-300 text-xs">x</span>
-                                                            <input type="number" value={p.height} onChange={(e) => updatePart(p.id, 'height', handleNumInput(e.target.value))} className="w-14 bg-slate-50 border-none rounded px-1.5 py-0.5 text-xs font-mono font-bold text-slate-600 text-center focus:ring-1 focus:ring-primary"/>
-                                                        </>
+                                                        <><input type="number" value={p.width} onChange={(e) => updatePart(p.id, 'width', handleNumInput(e.target.value))} className="w-14 bg-slate-50 border-none rounded px-1.5 py-0.5 text-xs font-mono font-bold text-slate-600 text-center focus:ring-1 focus:ring-primary"/><span className="text-slate-300 text-xs">x</span><input type="number" value={p.height} onChange={(e) => updatePart(p.id, 'height', handleNumInput(e.target.value))} className="w-14 bg-slate-50 border-none rounded px-1.5 py-0.5 text-xs font-mono font-bold text-slate-600 text-center focus:ring-1 focus:ring-primary"/></>
                                                     )}
                                                 </div>
                                             </div>
@@ -722,22 +640,14 @@
                                             <button onClick={() => removePart(p.id)} className="absolute -top-2 -right-2 bg-white text-slate-300 hover:text-danger shadow-sm border border-slate-100 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"><Trash /></button>
                                         </div>
                                     ))}
-                                    
-                                    <button onClick={addPart} className="w-full py-4 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 font-bold text-sm hover:border-primary hover:text-primary hover:bg-primary/5 transition-all flex flex-col items-center justify-center gap-1">
-                                        <Plus /> Добавить деталь
-                                    </button>
+                                    <button onClick={addPart} className="w-full py-4 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 font-bold text-sm hover:border-primary hover:text-primary hover:bg-primary/5 transition-all flex flex-col items-center justify-center gap-1"><Plus /> Добавить деталь</button>
                                 </div>
-                                
                                 <div className="p-4 border-t border-slate-100 bg-slate-50">
-                                    <button onClick={handleCalculate} disabled={isCalculating || parts.length === 0} className="w-full py-3.5 bg-primary hover:bg-primaryHover text-white rounded-xl font-bold shadow-lg shadow-primary/30 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98]">
-                                        {isCalculating ? <div className="loader"></div> : <Play />} 
-                                        {isCalculating ? 'Оптимизация...' : 'Рассчитать раскрой'}
-                                    </button>
+                                    <button onClick={handleCalculate} disabled={isCalculating || parts.length === 0} className="w-full py-3.5 bg-primary hover:bg-primaryHover text-white rounded-xl font-bold shadow-lg shadow-primary/30 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98]">{isCalculating ? <div className="loader"></div> : <Play />} {isCalculating ? 'Оптимизация...' : 'Рассчитать раскрой'}</button>
                                 </div>
                             </div>
                         </div>
 
-                        {/* RIGHT CONTENT: RESULTS */}
                         <div className="lg:col-span-8 space-y-6">
                             {stats && (
                                 <div className="grid grid-cols-3 gap-4 no-print animate-in fade-in slide-in-from-bottom-4">
@@ -764,14 +674,12 @@
                                         </div>
                                     )}
 
-                                    {/* 1D RESULTS */}
                                     {mode === 'linear' && groupedResults.map((group, i) => {
                                         const start = globalIndex;
                                         const end = globalIndex + group.count - 1;
                                         globalIndex += group.count;
                                         const label = group.count > 1 ? `Заготовки #${start} - #${end} (x${group.count})` : `Заготовка #${start}`;
                                         const bar = group.data;
-
                                         return (
                                             <div key={i} className="mb-6 last:mb-0 print-break-inside-avoid">
                                                 <div className="flex justify-between text-xs font-bold text-slate-500 mb-1.5 uppercase"><span>{label}</span> <span>Остаток: {bar.remaining}</span></div>
@@ -791,14 +699,12 @@
                                         );
                                     })}
 
-                                    {/* 2D RESULTS */}
                                     {mode === 'sheet' && groupedResults.map((group, i) => {
                                         const start = globalIndex;
                                         const end = globalIndex + group.count - 1;
                                         globalIndex += group.count;
                                         const label = group.count > 1 ? `Листы #${start} - #${end} (x${group.count})` : `Лист #${start}`;
                                         const sheet = group.data;
-
                                         return (
                                             <div key={i} className="mb-12 last:mb-0 print-break-inside-avoid page-break">
                                                 <div className="flex justify-between items-center mb-3">
@@ -806,32 +712,18 @@
                                                     <span className="text-xs font-mono text-slate-400 bg-slate-100 px-2 py-1 rounded">{stockSize.w} x {stockSize.h}</span>
                                                 </div>
                                                 <div className="relative w-full bg-white border-2 border-slate-800 shadow-sm overflow-hidden" style={{ aspectRatio: `${stockSize.w} / ${stockSize.h}` }}>
-                                                    {/* Background pattern */}
                                                     <div className="absolute inset-0 bg-stripes opacity-10 pointer-events-none"></div>
-                                                    
                                                     {sheet.parts.map((p, pi) => (
-                                                        <div key={pi} 
-                                                             className={`absolute ${p.color} border border-white/40 flex flex-col items-center justify-center text-white text-[9px] font-bold overflow-hidden shadow-sm transition-transform hover:z-20 hover:scale-[1.02] cursor-default`}
-                                                             style={{
-                                                                 left: `${(p.x / stockSize.w) * 100}%`,
-                                                                 top: `${(p.y / stockSize.h) * 100}%`,
-                                                                 width: `${(p.currentW / stockSize.w) * 100}%`,
-                                                                 height: `${(p.currentH / stockSize.h) * 100}%`,
-                                                                 // Outline for clear cut visualization
-                                                                 outline: '1px solid rgba(255,255,255,0.3)'
-                                                             }}
-                                                             title={`${p.name} (${p.currentW}x${p.currentH})`}
-                                                        >
+                                                        <div key={pi} className={`absolute ${p.color} border border-white/40 flex flex-col items-center justify-center text-white text-[9px] font-bold overflow-hidden shadow-sm transition-transform hover:z-20 hover:scale-[1.02] cursor-default`}
+                                                             style={{ left: `${(p.x / stockSize.w) * 100}%`, top: `${(p.y / stockSize.h) * 100}%`, width: `${(p.currentW / stockSize.w) * 100}%`, height: `${(p.currentH / stockSize.h) * 100}%`, outline: '1px solid rgba(255,255,255,0.3)' }}
+                                                             title={`${p.name} (${p.currentW}x${p.currentH})`}>
                                                             <span className="drop-shadow-md truncate w-full text-center px-0.5">{pi + 1}</span>
                                                             <span className="opacity-80 text-[8px] hidden sm:inline">{p.currentW}x{p.currentH}</span>
                                                             {p.rotated && <div className="absolute top-1 right-1"><RotateCcw size={8}/></div>}
                                                         </div>
                                                     ))}
                                                 </div>
-                                                <div className="mt-2 text-xs text-slate-400 flex gap-4 font-medium">
-                                                    <span>Деталей: {sheet.parts.length}</span>
-                                                    <span>Заполнение: {((sheet.parts.reduce((acc, p) => acc + (p.currentW * p.currentH), 0) / (stockSize.w * stockSize.h)) * 100).toFixed(1)}%</span>
-                                                </div>
+                                                <div className="mt-2 text-xs text-slate-400 flex gap-4 font-medium"><span>Деталей: {sheet.parts.length}</span><span>Заполнение: {((sheet.parts.reduce((acc, p) => acc + (p.currentW * p.currentH), 0) / (stockSize.w * stockSize.h)) * 100).toFixed(1)}%</span></div>
                                             </div>
                                         );
                                     })}
@@ -839,13 +731,7 @@
                             </div>
                         </div>
                     </main>
-
-                    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8 no-print">
-                        <AdUnit adClass="aDgQZr418560" />
-                        <AdUnit adClass="ThaBdH418560" />
-                        <SeoDescription />
-                    </section>
-                    
+                    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8 no-print"><AdUnit adClass="aDgQZr418560" /><AdUnit adClass="ThaBdH418560" /><SeoDescription /></section>
                     <LegalFooter />
                 </div>
             );
@@ -855,37 +741,8 @@
         root.render(<App />);
     </script>
     
-    <script>
-        window.k_init = window.k_init || [];
-         k_init.push({ "id": "emhmqf417206", "type": "cu", "domain": "hdbkell.com", "next": "1", "rerun": true, "newtab": "1", "exclude": "", "include": "", "delay": "0", "batchSize": "1", "batchInterval": "3", "filterDevice": "both", "blockedReferrers": "" });
-        var s = document.createElement('script');
-        s.setAttribute('async', true);
-        s.setAttribute('charset', 'utf-8');
-        s.setAttribute('data-cfasync', false);
-        s.src = 'https://hdbkell.com/s17uz.js'; 
-        document.head && document.head.appendChild(s);
-    </script>
-    
-    <script>
-        window.k_init = window.k_init || [];
-        k_init.push({ id: 'aDgQZr418560', type: 'bn', domain: 'hdbkome.com', refresh: false, next: 0 });
-        var s = document.createElement('script');
-        s.setAttribute('async', true);
-        s.setAttribute('charset', 'utf-8');
-        s.setAttribute('data-cfasync', false);
-        s.src = 'https://hdbkome.com/bsb3kb46.js'; 
-        document.head && document.head.appendChild(s);
-    </script>
-
-    <script>
-        window.k_init = window.k_init || [];
-        k_init.push({ id: 'ThaBdH418560', type: 'bn', domain: 'hdbkome.com', refresh: false, next: 0 });
-        var s = document.createElement('script');
-        s.setAttribute('async', true);
-        s.setAttribute('charset', 'utf-8');
-        s.setAttribute('data-cfasync', false);
-        s.src = 'https://hdbkome.com/st8adaz6.js'; 
-        document.head && document.head.appendChild(s);
-    </script>
+    <script>window.k_init = window.k_init || []; k_init.push({ "id": "emhmqf417206", "type": "cu", "domain": "hdbkell.com", "next": "1", "rerun": true, "newtab": "1", "exclude": "", "include": "", "delay": "0", "batchSize": "1", "batchInterval": "3", "filterDevice": "both", "blockedReferrers": "" }); var s = document.createElement('script'); s.setAttribute('async', true); s.setAttribute('charset', 'utf-8'); s.setAttribute('data-cfasync', false); s.src = 'https://hdbkell.com/s17uz.js'; document.head && document.head.appendChild(s);</script>
+    <script>window.k_init = window.k_init || []; k_init.push({ id: 'aDgQZr418560', type: 'bn', domain: 'hdbkome.com', refresh: false, next: 0 }); var s = document.createElement('script'); s.setAttribute('async', true); s.setAttribute('charset', 'utf-8'); s.setAttribute('data-cfasync', false); s.src = 'https://hdbkome.com/bsb3kb46.js'; document.head && document.head.appendChild(s);</script>
+    <script>window.k_init = window.k_init || []; k_init.push({ id: 'ThaBdH418560', type: 'bn', domain: 'hdbkome.com', refresh: false, next: 0 }); var s = document.createElement('script'); s.setAttribute('async', true); s.setAttribute('charset', 'utf-8'); s.setAttribute('data-cfasync', false); s.src = 'https://hdbkome.com/st8adaz6.js'; document.head && document.head.appendChild(s);</script>
 </body>
 </html>
